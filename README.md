@@ -1,51 +1,75 @@
-# Single-page small business web application
-A single-page web application template for introducing small businesses supporting white and black themes.
+# Nuxt Minimal Starter
 
-This template supports the content needed by small businesses, including the following:
-***Home***, ***About us***, ***Support***, ***Services***, and ***Contact us***.
+Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
 
-Fork [this repository](https://github.com/reza-azimifar/single-page-small-business-web-application), modify the configuration and files, and have your business website for free by publishing this code on [github pages](https://pages.github.com/) or any other domain.
+## Setup
 
+Make sure to install dependencies:
 
-## Demo 
-Here you can check the [Demo](https://reza-azimifar.github.io/single-page-small-business-web-application/) online:
+```bash
+# npm
+npm install
 
-![Demo Image](./src/images/demo.png)
+# pnpm
+pnpm install
 
+# yarn
+yarn install
 
-## Getting started
-+ Register a `GitHub` account
-+ Fork this repository by clicking the `fork` button in the top right
-+ Go to the repository’s settings and rename the repository `[Your GitHub Username].github.io`, which will also be your website’s URL
-+ Add all dependencies to the project by executing the `npm install` in the command line.
-+ Set site-wide configuration as see below description
+# bun
+bun install
+```
 
+## Development Server
 
-## Pages setup and main configuration
-The main configuration file for the website is `index.html` file in the directory which defines the content of the navbar and other site-wide features.
+Start the development server on `http://localhost:3000`:
 
-It would be best if you replaced the default values of the navigation bar and descriptions and contents in other sections of the `index.html` file with your desired content.
+```bash
+# npm
+npm run dev
 
-Also, it is better to replace the titles of the buttons with the values you need and adjust the links of the buttons to the relevant sections based on your needs.
+# pnpm
+pnpm dev
 
-Set the link of your social pages and adjust the icons, titles, and links in the footer section according to your needs.
+# yarn
+yarn dev
 
-In the end, by executing the `npm run build` in the command line create the final production version in the `dist` folder and only upload the `dist` folder on your host
+# bun
+bun run dev
+```
 
+## Production
 
-## Files
-You can upload and replace your business images as below template in the `images` directory. 
+Build the application for production:
 
-+ Your first image: `1.svg`
-+ Your second image: `2.svg`
-+ Your third image: `3.svg`
-+ Your fourth image: `4.svg`
-  
+```bash
+# npm
+npm run build
 
-## Authors
-Reza Azimifar
+# pnpm
+pnpm build
 
-<a href="https://rezaexplains.com/">![Static Badge](https://img.shields.io/badge/website%20-%20%23282828?style=for-the-badge&logo=esri&logoColor=%23CCFF00&color=%23282828)</a>
-<a href="mailto:azimifar.reza@gmail.com@gmail.com">![Static Badge](https://img.shields.io/badge/Gmail%20-%20%23282828?style=for-the-badge&logo=gmail&color=%23282828)</a>
-<a href="https://www.linkedin.com/in/reza-azimifar/">![Static Badge](https://img.shields.io/badge/linkedin%20-%20%23282828?style=for-the-badge&logo=linkedin&logoColor=%230A66C2&color=%23282828)</a>
-<a href="https://www.instagram.com/reza.explains/">![Static Badge](https://img.shields.io/badge/instagram%20-%20%23282828?style=for-the-badge&logo=instagram&color=%23282828)</a>
+# yarn
+yarn build
+
+# bun
+bun run build
+```
+
+Locally preview production build:
+
+```bash
+# npm
+npm run preview
+
+# pnpm
+pnpm preview
+
+# yarn
+yarn preview
+
+# bun
+bun run preview
+```
+
+Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
