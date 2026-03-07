@@ -7,6 +7,7 @@
 <script setup>
 import { onMounted, onUnmounted } from 'vue';
 
+const config = useRuntimeConfig();
 let map = null;
 
 onMounted(() => {
@@ -26,8 +27,7 @@ onMounted(() => {
 
 const initMap = () => {
   if (typeof window !== 'undefined' && window.mapboxgl) {
-    // Replace with your Mapbox access token
-    window.mapboxgl.accessToken = 'pk.eyJ1Ijoia2hlcmFkbWFuZGkiLCJhIjoiY2l4aXF5Ym5lMDAwbzJ6cHA0cWw4OWRkNyJ9.pbe17ldY9KRsNZQRwfkRFA';
+    window.mapboxgl.accessToken = config.public.mapboxToken;
 
     map = new window.mapboxgl.Map({
       container: 'map',

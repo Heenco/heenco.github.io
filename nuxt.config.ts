@@ -9,6 +9,11 @@ export default defineNuxtConfig({
     prefix: 'U',
     componentDir: './app/components/ui'
   },
+  runtimeConfig: {
+    public: {
+      mapboxToken: process.env.NUXT_PUBLIC_MAPBOX_TOKEN
+    }
+  },
   app: {
     head: {
       title: 'Heenco - Geographic Intelligence',
