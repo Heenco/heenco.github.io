@@ -15,6 +15,15 @@
       </div>
     </section>
 
+    <!-- Spacer Section -->
+    <section class="spacer-section">
+      <div class="container">
+        <div class="spacer-content">
+          <p class="spacer-text">Scroll to explore our capabilities</p>
+        </div>
+      </div>
+    </section>
+
   </main>
 </template>
 
@@ -141,6 +150,54 @@ import HeencoLogo from '~/components/ui/HeencoLogo.vue'
   .hero {
     min-height: 65vh;
     padding: 4rem 2rem 3rem;
+  }
+}
+
+/* Spacer Section */
+.spacer-section {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: 
+    linear-gradient(rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.98)),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 80px,
+      rgba(209, 213, 219, 0.1) 80px,
+      rgba(209, 213, 219, 0.1) 81px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 80px,
+      rgba(209, 213, 219, 0.1) 80px,
+      rgba(209, 213, 219, 0.1) 81px
+    );
+  background-size: 100% 100%, 80px 80px, 80px 80px;
+}
+
+.spacer-content {
+  text-align: center;
+}
+
+.spacer-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: #9ca3af;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  animation: fadeInOut 2s ease-in-out infinite;
+}
+
+@keyframes fadeInOut {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
   }
 }
 </style>
