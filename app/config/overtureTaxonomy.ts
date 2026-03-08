@@ -2615,3 +2615,35 @@ export function getPathLabels(path: string[]): string[] {
   }
   return labels
 }
+
+/** Return the node reached by path, or null */
+function nodeAt(path: string[]): TaxonomyNode | null {
+  let nodes: TaxonomyNode[] = OVERTURE_PLACES_TAXONOMY
+  let found: TaxonomyNode | undefined
+  for (const id of path) {
+    found = nodes.find(n => n.id === id)
+    if (!found) return null
+    nodes = found.children ?? []
+  }
+  return found ?? null
+}
+
+/** Collect the node's own id plus all descendant ids recursively */
+function collectIds(node: TaxonomyNode, out: string[]): void {
+  out.push(node.id)
+  for (const child of node.children ?? []) collectIds(child, out)
+}
+
+/**
+ * Return ALL category ids that fall under the given path —
+ * i.e. the selected node itself plus every descendant.
+ * Use this to build an IN (...) filter so parent-level selections
+ * include all their child categories.
+ */
+export function getAllDescendantIds(path: string[]): string[] {
+  const node = nodeAt(path)
+  if (!node) return []
+  const ids: string[] = []
+  collectIds(node, ids)
+  return ids
+}

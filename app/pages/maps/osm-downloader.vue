@@ -7,15 +7,9 @@
 
         <!-- Header -->
         <div class="od-header">
-          <h1 class="od-title">Overture Downloader</h1>
-          <p class="od-subtitle">Extract Overture Maps data to Parquet</p>
+          <h1 class="od-title">OSM Downloader</h1>
+          <p class="od-subtitle">Extract OpenStreetMap data to Parquet</p>
         </div>
-
-        <!-- Release -->
-        <section class="od-section">
-          <label class="od-label">Release</label>
-          <UInput v-model="release" type="text" placeholder="2026-01-21.0" />
-        </section>
 
         <!-- Bounding Box -->
         <section class="od-section">
@@ -48,58 +42,52 @@
               <UInput v-model.number="bbox.max_lat" type="number" step="0.0001" @change="updateBboxRect" />
             </div>
           </div>
-          <!-- Draw mode toggle -->
           <UButton
             variant="outline"
             size="sm"
-            :style="drawMode ? 'border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.12); color: #f59e0b' : null"
+            :style="drawMode ? 'border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.08); color: #b45309' : null"
             @click="toggleDrawMode"
           >
             {{ drawMode ? '✕ Cancel draw' : '⬚ Draw bbox on map' }}
           </UButton>
         </section>
 
-        <!-- Theme -->
+        <!-- Element Types -->
         <section class="od-section">
-          <label class="od-label">Theme</label>
-          <select v-model="selectedTheme" class="od-select" @change="selectedPath = []">
-            <option v-for="t in THEMES" :key="t.id" :value="t.id">{{ t.label }}</option>
+          <label class="od-label">Element Types</label>
+          <div class="od-toggles">
+            <button
+              v-for="t in ELEMENT_TYPES"
+              :key="t.id"
+              class="od-toggle"
+              :class="{ active: elementTypes.includes(t.id) }"
+              @click="toggleType(t.id)"
+            >
+              {{ t.label }}
+            </button>
+          </div>
+          <p class="od-hint">Ways are represented by their center point.</p>
+        </section>
+
+        <!-- Tag Key -->
+        <section class="od-section">
+          <label class="od-label">Tag Key</label>
+          <select v-model="selectedKey" class="od-select" @change="selectedValue = ''">
+            <option value="">— select a key —</option>
+            <option v-for="k in OSM_TAGS" :key="k.key" :value="k.key">{{ k.label }}</option>
           </select>
         </section>
 
-        <!-- Category (places only) -->
-        <section v-if="selectedTheme === 'places'" class="od-section">
-          <div class="od-section-row">
-            <label class="od-label">Category</label>
-            <UButton v-if="selectedPath.length > 0" variant="outline" size="sm" @click="selectedPath = []">
-              Clear
-            </UButton>
-          </div>
-          <div class="od-dropdowns">
-            <select
-              v-for="(level, i) in dropdownLevels"
-              :key="i"
-              class="od-select"
-              :value="selectedPath[i] ?? ''"
-              @change="(e) => selectAtLevel(i, (e.target as HTMLSelectElement).value)"
-            >
-              <option value="">{{ i === 0 ? '— select category —' : '— all (or drill down) —' }}</option>
-              <option v-for="opt in level" :key="opt.id" :value="opt.id">
-                {{ opt.label }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Breadcrumb path -->
-          <div v-if="selectedPath.length > 0" class="od-path">
-            <span class="od-path-id">{{ selectedCategory }}</span>
-            <span class="od-path-breadcrumb">
-              {{ pathLabels.join(' › ') }}
-            </span>
-          </div>
-          <div v-else class="od-hint">
-            Select a category above, or leave empty to download all places in the bbox.
-          </div>
+        <!-- Tag Value -->
+        <section v-if="selectedKey" class="od-section">
+          <label class="od-label">Tag Value</label>
+          <select v-model="selectedValue" class="od-select">
+            <option value="">— all values —</option>
+            <option v-for="v in currentValues" :key="v.value" :value="v.value">{{ v.label }}</option>
+          </select>
+          <p v-if="!selectedValue" class="od-hint">
+            Leave empty to download all <code>{{ selectedKey }}</code> features in the bbox.
+          </p>
         </section>
 
         <!-- Extract -->
@@ -112,15 +100,15 @@
             @click="extract"
           >
             <span v-if="status === 'loading'" class="od-spinner">◌</span>
-            {{ status === 'loading' ? 'Extracting…' : 'Extract to Parquet' }}
+            {{ status === 'loading' ? 'Downloading…' : 'Extract to Parquet' }}
           </UButton>
 
           <div v-if="status === 'loading'" class="od-msg od-msg-info">
-            DuckDB WASM querying Overture S3 directly in your browser.<br>
-            Large bboxes may take a few minutes.
+            Querying Overpass API then writing Parquet in your browser.<br>
+            Large areas may take a minute.
           </div>
           <div v-if="result && status === 'success'" class="od-msg od-msg-success">
-            <div>✓ <strong>{{ result.rows.toLocaleString() }}</strong> rows saved</div>
+            <div>✓ <strong>{{ result.rows.toLocaleString() }}</strong> features saved</div>
             <div class="od-result-file">{{ result.fileName }}</div>
             <div class="od-result-meta">{{ (result.sizeBytes / 1e6).toFixed(2) }} MB</div>
           </div>
@@ -133,7 +121,7 @@
     </aside>
 
     <!-- ── Map ────────────────────────────────────────────────────────── -->
-    <div id="od-map" class="od-map" />
+    <div id="osm-map" class="od-map" />
 
   </div>
 </template>
@@ -142,23 +130,17 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import UButton from '~/components/ui/Button.vue'
 import UInput from '~/components/ui/Input.vue'
-import {
-  OVERTURE_PLACES_TAXONOMY,
-  childrenAt,
-  getPathLabels,
-  getAllDescendantIds,
-  type TaxonomyNode,
-} from '~/config/overtureTaxonomy'
+import { OSM_TAGS } from '~/config/osmTags'
 
 useHead({
   link: [
     { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
     { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
     { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap' },
-  ]
+  ],
 })
 
-// ── Map setup ───────────────────────────────────────────────────────────────
+// ── Map setup ────────────────────────────────────────────────────────────────
 const MAPLIBRE_CSS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'
 const MAPLIBRE_JS  = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'
 
@@ -174,20 +156,35 @@ const loadScript = (src: string): Promise<void> =>
     document.head.appendChild(s)
   })
 
-// ── Config ──────────────────────────────────────────────────────────────────
-const OVERTURE_RELEASE = '2026-01-21.0'
-const release = ref(OVERTURE_RELEASE)
-
-const THEMES = [
-  { id: 'places',         label: 'Places' },
-  { id: 'buildings',      label: 'Buildings' },
-  { id: 'transportation', label: 'Transportation' },
-  { id: 'addresses',      label: 'Addresses' },
-  { id: 'base',           label: 'Base (Land)' },
+// ── Element types ────────────────────────────────────────────────────────────
+const ELEMENT_TYPES = [
+  { id: 'node',     label: 'Nodes' },
+  { id: 'way',      label: 'Ways' },
+  { id: 'relation', label: 'Relations' },
 ]
 
-// ── Bbox ────────────────────────────────────────────────────────────────────
-const bbox = ref({ min_lon: 113.0, min_lat: -44.0, max_lon: 154.0, max_lat: -10.0 })
+const elementTypes = ref<string[]>(['node', 'way'])
+
+const toggleType = (id: string) => {
+  const i = elementTypes.value.indexOf(id)
+  if (i >= 0) {
+    if (elementTypes.value.length === 1) return // keep at least one
+    elementTypes.value.splice(i, 1)
+  } else {
+    elementTypes.value.push(id)
+  }
+}
+
+// ── Tag selection ────────────────────────────────────────────────────────────
+const selectedKey   = ref('')
+const selectedValue = ref('')
+
+const currentValues = computed(() =>
+  OSM_TAGS.find(k => k.key === selectedKey.value)?.values ?? [],
+)
+
+// ── Bbox ─────────────────────────────────────────────────────────────────────
+const bbox = ref({ min_lon: 150.8, min_lat: -33.95, max_lon: 151.35, max_lat: -33.7 })
 
 const useMapView = () => {
   if (!map) return
@@ -210,7 +207,7 @@ const fitMapToBbox = () => {
 
 const updateBboxRect = () => {
   if (!map) return
-  const s = map.getSource('od-bbox')
+  const s = map.getSource('osm-bbox')
   if (!s) return
   const { min_lon, min_lat, max_lon, max_lat } = bbox.value
   s.setData({
@@ -224,7 +221,7 @@ const updateBboxRect = () => {
 
 watch(bbox, updateBboxRect, { deep: true })
 
-// ── Draw mode ───────────────────────────────────────────────────────────────
+// ── Draw mode ────────────────────────────────────────────────────────────────
 const drawMode = ref(false)
 let drawStart: { lng: number; lat: number } | null = null
 
@@ -241,55 +238,26 @@ const toggleDrawMode = () => {
   }
 }
 
-// ── Theme & Category ────────────────────────────────────────────────────────
-const selectedTheme = ref('places')
-const selectedPath  = ref<string[]>([])
-
-const selectAtLevel = (level: number, id: string) => {
-  if (!id) {
-    selectedPath.value = selectedPath.value.slice(0, level)
-  } else {
-    selectedPath.value = [...selectedPath.value.slice(0, level), id]
-  }
-}
-
-/** Dropdown options for each level based on current selection */
-const dropdownLevels = computed<TaxonomyNode[][]>(() => {
-  const levels: TaxonomyNode[][] = [OVERTURE_PLACES_TAXONOMY]
-  for (let i = 0; i < selectedPath.value.length; i++) {
-    const children = childrenAt(selectedPath.value.slice(0, i + 1))
-    if (children.length === 0) break
-    levels.push(children)
-  }
-  return levels
-})
-
-const selectedCategory = computed(() =>
-  selectedPath.value.length > 0 ? selectedPath.value[selectedPath.value.length - 1] : null,
-)
-
-const pathLabels = computed(() => getPathLabels(selectedPath.value))
-
-// ── Validation ──────────────────────────────────────────────────────────────
+// ── Validation ───────────────────────────────────────────────────────────────
 const validationError = computed(() => {
   const { min_lon, min_lat, max_lon, max_lat } = bbox.value
   if (min_lon >= max_lon || min_lat >= max_lat) return 'Bbox min must be less than max'
+  if (!selectedKey.value) return 'Select a tag key'
+  if (elementTypes.value.length === 0) return 'Select at least one element type'
   return null
 })
 
-// ── DuckDB WASM (browser-side, lazy init) ───────────────────────────────────
+// ── DuckDB WASM (lazy init) ──────────────────────────────────────────────────
 let _db: any = null
 let _conn: any = null
 
 const getDuckDB = async () => {
   if (_conn) return _conn
 
-  // Dynamic import so WASM is only loaded when first needed
-  const duckdb = await import('@duckdb/duckdb-wasm')
+  const duckdb  = await import('@duckdb/duckdb-wasm')
   const bundles = duckdb.getJsDelivrBundles()
   const bundle  = await duckdb.selectBundle(bundles)
 
-  // Browsers block cross-origin Workers — fetch the script and re-host as a blob URL
   const workerResp = await fetch(bundle.mainWorker!)
   const workerBlob = await workerResp.blob()
   const workerUrl  = URL.createObjectURL(workerBlob)
@@ -299,25 +267,63 @@ const getDuckDB = async () => {
   _db = new duckdb.AsyncDuckDB(logger, worker)
   await _db.instantiate(bundle.mainModule, bundle.pthreadWorker)
   _conn = await _db.connect()
-
   URL.revokeObjectURL(workerUrl)
-
-  // Load httpfs so we can read from S3
-  await _conn.query(`LOAD httpfs; SET s3_region='us-west-2';`)
   return _conn
 }
 
-// ── Extract ─────────────────────────────────────────────────────────────────
+// ── OSM element flattening ───────────────────────────────────────────────────
+const flattenElement = (el: any) => {
+  const tags = el.tags ?? {}
+
+  // nodes have lat/lon directly; ways/relations use center from `out center`
+  const lat = el.lat  ?? el.center?.lat ?? null
+  const lon = el.lon  ?? el.center?.lon ?? null
+
+  const {
+    name,
+    'name:en':          name_en,
+    website,
+    'contact:website':  contact_website,
+    phone,
+    'contact:phone':    contact_phone,
+    email,
+    'contact:email':    contact_email,
+    opening_hours,
+    'addr:housenumber': addr_housenumber,
+    'addr:street':      addr_street,
+    'addr:suburb':      addr_suburb,
+    'addr:city':        addr_city,
+    'addr:postcode':    addr_postcode,
+    'addr:state':       addr_state,
+    'addr:country':     addr_country,
+    ...rest
+  } = tags
+
+  return {
+    osm_id:           el.id,
+    osm_type:         el.type,
+    name:             name             ?? null,
+    name_en:          name_en          ?? null,
+    latitude:         lat,
+    longitude:        lon,
+    website:          website          ?? contact_website ?? null,
+    phone:            phone            ?? contact_phone   ?? null,
+    email:            email            ?? contact_email   ?? null,
+    opening_hours:    opening_hours    ?? null,
+    addr_housenumber: addr_housenumber ?? null,
+    addr_street:      addr_street      ?? null,
+    addr_suburb:      addr_suburb      ?? null,
+    addr_city:        addr_city        ?? null,
+    addr_postcode:    addr_postcode    ?? null,
+    addr_state:       addr_state       ?? null,
+    addr_country:     addr_country     ?? null,
+    tags:             JSON.stringify(rest),
+  }
+}
+
+// ── Extract ──────────────────────────────────────────────────────────────────
 const status = ref<null | 'loading' | 'success' | 'error'>(null)
 const result = ref<any>(null)
-
-const THEME_S3: Record<string, string> = {
-  places:         'theme=places/type=place',
-  buildings:      'theme=buildings/type=building',
-  transportation: 'theme=transportation/type=segment',
-  addresses:      'theme=addresses/type=address',
-  base:           'theme=base/type=land',
-}
 
 const extract = async () => {
   if (validationError.value) return
@@ -325,67 +331,63 @@ const extract = async () => {
   result.value = null
 
   try {
-    const conn = await getDuckDB()
     const { min_lon, min_lat, max_lon, max_lat } = bbox.value
-    const rel   = release.value
-    const theme = selectedTheme.value
-    const cat   = selectedTheme.value === 'places' ? selectedCategory.value : null
-    const slug  = cat ? `${theme}_${cat}` : theme
+    const key   = selectedKey.value
+    const value = selectedValue.value
+
+    // Build Overpass QL
+    const tagFilter  = value ? `["${key}"="${value}"]` : `["${key}"]`
+    const bboxFilter = `(${min_lat},${min_lon},${max_lat},${max_lon})`
+    const unionLines = elementTypes.value.map(t => `  ${t}${tagFilter}${bboxFilter};`).join('\n')
+    const query = `[out:json][timeout:120];\n(\n${unionLines}\n);\nout center qt;`
+
+    // POST to Overpass API
+    const resp = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `data=${encodeURIComponent(query)}`,
+    })
+
+    if (!resp.ok) {
+      const text = await resp.text()
+      throw new Error(`Overpass error ${resp.status}: ${text.slice(0, 300)}`)
+    }
+
+    const data = await resp.json()
+
+    if (data.remark) {
+      console.warn('Overpass remark:', data.remark)
+      if (/exceeded|timeout/i.test(data.remark)) {
+        throw new Error(`Query exceeded Overpass limits — try a smaller bbox. (${data.remark})`)
+      }
+    }
+
+    const elements: any[] = data.elements ?? []
+    if (elements.length === 0) {
+      result.value = { error: 'No features found in this area with the selected filter.' }
+      status.value = 'error'
+      return
+    }
+
+    // Flatten OSM elements to plain rows
+    const rows = elements.map(flattenElement)
+
+    // Register NDJSON in DuckDB virtual filesystem
+    const ndjson = rows.map(r => JSON.stringify(r)).join('\n')
+    const conn   = await getDuckDB()
+    await _db.registerFileText('osm_raw.ndjson', ndjson)
+
+    // Write Parquet
+    const slug     = value ? `osm_${key}_${value}` : `osm_${key}`
     const fileName = `${slug}_${Date.now()}.parquet`
 
-    const s3 = `s3://overturemaps-us-west-2/release/${rel}/${THEME_S3[theme]}/**/*.parquet`
-
-    const bboxWhere = `bbox.xmin < ${max_lon} AND bbox.xmax > ${min_lon} AND bbox.ymin < ${max_lat} AND bbox.ymax > ${min_lat}`
-
-    // Use all descendant ids so selecting a parent category (e.g. "eat_and_drink")
-    // returns all children (restaurant, cafe, bar, …) not just exact matches
-    let catWhere = ''
-    if (selectedTheme.value === 'places' && selectedPath.value.length > 0) {
-      const ids = getAllDescendantIds(selectedPath.value)
-      const inList = ids.map(id => `'${id}'`).join(', ')
-      catWhere = `categories.primary IN (${inList}) AND `
-    }
-    // For point features (places/addresses) derive lon/lat from bbox struct — no spatial ext needed
-    const isPoint   = theme === 'places' || theme === 'addresses'
-    // For places: flatten the most useful nested fields into top-level columns
-    // names.primary → name, websites[1] → website, phones[1] → phone,
-    // categories.primary → category, addresses[1].freeform → address
-    const geoSelect = theme === 'places'
-      ? `id,
-         names.primary AS name,
-         categories.primary AS category,
-         categories.alternate[1] AS category_alt,
-         confidence,
-         websites[1] AS website,
-         phones[1] AS phone,
-         emails[1] AS email,
-         addresses[1].freeform AS address,
-         addresses[1].locality AS city,
-         addresses[1].region AS state,
-         addresses[1].postcode AS postcode,
-         addresses[1].country AS country,
-         brand.names.primary AS brand,
-         operating_status,
-         bbox.xmin AS longitude,
-         bbox.ymin AS latitude,
-         sources[1].dataset AS source,
-         geometry`
-      : isPoint
-        ? `* EXCLUDE (geometry), bbox.xmin AS longitude, bbox.ymin AS latitude, geometry`
-        : `* EXCLUDE (geometry), geometry`
-
-    const sql = `
+    await conn.query(`
       COPY (
-        SELECT ${geoSelect}
-        FROM read_parquet('${s3}')
-        WHERE ${catWhere}${bboxWhere}
+        SELECT * FROM read_json_auto('osm_raw.ndjson')
       ) TO '${fileName}' (FORMAT PARQUET, COMPRESSION ZSTD)
-    `
+    `)
 
-    await conn.query(sql)
-
-    const buffer  = await _db.copyFileToBuffer(fileName)
-    const rows    = Number((await conn.query(`SELECT COUNT(*) AS cnt FROM read_parquet('${fileName}')`)).getChildAt(0).get(0))
+    const buffer = await _db.copyFileToBuffer(fileName)
 
     // Trigger browser download
     const blob = new Blob([buffer], { type: 'application/octet-stream' })
@@ -398,7 +400,7 @@ const extract = async () => {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
 
-    result.value = { rows, fileName, sizeBytes: buffer.byteLength }
+    result.value = { rows: rows.length, fileName, sizeBytes: buffer.byteLength }
     status.value = 'success'
   } catch (err: any) {
     result.value = { error: err?.message ?? 'Unknown error' }
@@ -406,40 +408,39 @@ const extract = async () => {
   }
 }
 
-// ── Map init ────────────────────────────────────────────────────────────────
+// ── Map init ─────────────────────────────────────────────────────────────────
 const initMap = () => {
-  if (!window.maplibregl) return
+  const w = window as any
+  if (!w.maplibregl) return
 
-  map = new window.maplibregl.Map({
-    container: 'od-map',
-    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-    center: [133.5, -27.0],
-    zoom: 3.5,
+  map = new w.maplibregl.Map({
+    container: 'osm-map',
+    style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    center: [151.2093, -33.8688],
+    zoom: 11,
     attributionControl: false,
   })
 
   map.on('load', () => {
-    // Add bbox source + layers
-    map.addSource('od-bbox', {
+    map.addSource('osm-bbox', {
       type: 'geojson',
       data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[]] } },
     })
     map.addLayer({
-      id: 'od-bbox-fill',
+      id: 'osm-bbox-fill',
       type: 'fill',
-      source: 'od-bbox',
-      paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.08 },
+      source: 'osm-bbox',
+      paint: { 'fill-color': '#3b82f6', 'fill-opacity': 0.08 },
     })
     map.addLayer({
-      id: 'od-bbox-line',
+      id: 'osm-bbox-line',
       type: 'line',
-      source: 'od-bbox',
-      paint: { 'line-color': '#f59e0b', 'line-width': 2, 'line-dasharray': [5, 3] },
+      source: 'osm-bbox',
+      paint: { 'line-color': '#3b82f6', 'line-width': 2, 'line-dasharray': [5, 3] },
     })
     updateBboxRect()
   })
 
-  // Draw bbox interactions
   map.on('mousedown', (e: any) => {
     if (!drawMode.value) return
     drawStart = { lng: e.lngLat.lng, lat: e.lngLat.lat }
@@ -487,7 +488,6 @@ onUnmounted(() => {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background: #0a0a12;
   font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -512,9 +512,7 @@ onUnmounted(() => {
   gap: 0;
 }
 
-.od-map {
-  flex: 1;
-}
+.od-map { flex: 1; }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────────── */
 .od-panel-inner::-webkit-scrollbar { width: 4px; }
@@ -551,9 +549,7 @@ onUnmounted(() => {
   gap: 0.5rem;
 }
 
-.od-section:last-child {
-  border-bottom: none;
-}
+.od-section:last-child { border-bottom: none; }
 
 .od-section-row {
   display: flex;
@@ -561,10 +557,7 @@ onUnmounted(() => {
   justify-content: space-between;
 }
 
-.od-section-actions {
-  display: flex;
-  gap: 0.35rem;
-}
+.od-section-actions { display: flex; gap: 0.35rem; }
 
 /* ── Labels ──────────────────────────────────────────────────────────────── */
 .od-label {
@@ -581,7 +574,47 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 
-/* ── Select ─────────────────────────────────────────────────────────────── */
+.od-hint code {
+  font-family: monospace;
+  font-size: 0.85em;
+  background: hsl(var(--muted));
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+}
+
+/* ── Bbox grid ───────────────────────────────────────────────────────────── */
+.od-bbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.od-field { display: flex; flex-direction: column; gap: 0.2rem; }
+.od-field-label { font-size: 0.65rem; color: hsl(var(--muted-foreground)); }
+
+/* ── Element type toggles ────────────────────────────────────────────────── */
+.od-toggles { display: flex; gap: 0.35rem; }
+
+.od-toggle {
+  flex: 1;
+  font-size: 0.75rem;
+  font-family: inherit;
+  padding: 0.3rem 0;
+  border-radius: 6px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.od-toggle:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.od-toggle.active {
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  border-color: hsl(var(--foreground));
+}
+
+/* ── Select ──────────────────────────────────────────────────────────────── */
 .od-select {
   width: 100%;
   background: hsl(var(--background));
@@ -589,6 +622,7 @@ onUnmounted(() => {
   border-radius: var(--radius);
   color: hsl(var(--foreground));
   font-size: 0.8rem;
+  font-family: inherit;
   padding: 0.4rem 0.6rem;
   box-sizing: border-box;
   outline: none;
@@ -606,54 +640,6 @@ onUnmounted(() => {
   box-shadow: 0 0 0 2px hsl(var(--ring) / 0.25);
 }
 
-/* ── Bbox grid ───────────────────────────────────────────────────────────── */
-.od-bbox-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.4rem;
-}
-
-.od-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.od-field-label {
-  font-size: 0.65rem;
-  color: hsl(var(--muted-foreground));
-}
-
-/* ── Category dropdowns ──────────────────────────────────────────────────── */
-.od-dropdowns {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-/* ── Path breadcrumb ─────────────────────────────────────────────────────── */
-.od-path {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  background: rgba(245, 158, 11, 0.07);
-  border: 1px solid rgba(245, 158, 11, 0.18);
-  border-radius: 6px;
-  padding: 0.45rem 0.6rem;
-}
-
-.od-path-id {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #f59e0b;
-  font-family: monospace;
-}
-
-.od-path-breadcrumb {
-  font-size: 0.68rem;
-  color: hsl(var(--muted-foreground));
-}
-
 /* ── Result messages ─────────────────────────────────────────────────────── */
 .od-msg {
   font-size: 0.75rem;
@@ -667,23 +653,11 @@ onUnmounted(() => {
 .od-msg-success { background: rgba(22,163,74,0.08);  color: #15803d; border: 1px solid rgba(22,163,74,0.3); }
 .od-msg-error   { background: rgba(220,38,38,0.08);  color: #dc2626; border: 1px solid rgba(220,38,38,0.3); }
 
-.od-result-file {
-  font-family: monospace;
-  font-size: 0.68rem;
-  word-break: break-all;
-  opacity: 0.8;
-}
-
-.od-result-meta {
-  opacity: 0.65;
-  font-size: 0.7rem;
-}
+.od-result-file { font-family: monospace; font-size: 0.68rem; word-break: break-all; opacity: 0.8; }
+.od-result-meta { opacity: 0.65; font-size: 0.7rem; }
 
 /* ── Spinner ─────────────────────────────────────────────────────────────── */
-.od-spinner {
-  display: inline-block;
-  animation: spin 1s linear infinite;
-}
+.od-spinner { display: inline-block; animation: spin 1s linear infinite; }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
