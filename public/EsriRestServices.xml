@@ -1,0 +1,29 @@
+<!DOCTYPE connections>
+<qgsARCGISFEATURESERVERConnections version="1.0">
+    <arcgisfeatureserver username="" password="" name="ABS" authcfg="" url="https://services-ap1.arcgis.com/ypkPEy1AmwPKGNNv/ArcGIS/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="ACT | ACTMAPI" authcfg="" url="https://data4.actmapi.act.gov.au/arcgis/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="ESRI Services" authcfg="" url="https://services.arcgisonline.com/ArcGIS/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="GA Atlas" authcfg="" url="https://services-ap1.arcgis.com/ypkPEy1AmwPKGNNv/ArcGIS/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="GA Atlas - Drainage" authcfg="" url="https://services-ap1.arcgis.com/ypkPEy1AmwPKGNNv/ArcGIS/rest/services/Geofabric_Drainage_Divisions/FeatureServer"/>
+    <arcgisfeatureserver username="" password="" name="GA Atlas - Water Bodies" authcfg="" url="https://services-ap1.arcgis.com/ypkPEy1AmwPKGNNv/arcgis/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="GeoScience Australia" authcfg="" url="https://services.ga.gov.au/site_13/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="NSW | DPIE" authcfg="" url="https://mapprod3.environment.nsw.gov.au/arcgis/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="NSW | Historical" authcfg="" url="https://api.apps1.nsw.gov.au/planning/arcgis/V1/rest/services/ePlanningHistoric/Planning_Historic_Combined/MapServer"/>
+    <arcgisfeatureserver username="" password="" name="NSW | Six Maps" authcfg="" url="https://maps.six.nsw.gov.au/arcgis/rest/services/public"/>
+    <arcgisfeatureserver username="" password="" name="NSW | SixMaps2" authcfg="" url="https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps"/>
+    <arcgisfeatureserver username="" password="" name="NSW | Spatial Portal" authcfg="" url="https://portal.spatial.nsw.gov.au/server/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="NSW | WaterNSW" authcfg="" url="https://mapprod.waternsw.com.au/arcgis/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="NSWFLOOD" authcfg="" url="https://portal.spatial.nsw.gov.au/server/rest/services/Floods_Nov_2022/MapServer"/>
+    <arcgisfeatureserver username="" password="" name="QLD | BCC" authcfg="" url="https://services2.arcgis.com/dEKgZETqwmDAh1rP/ArcGIS/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="QLD | Department of Resources" authcfg="" url="https://spatial-gis.information.qld.gov.au/arcgis/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="QLD | Spatial - IMG" authcfg="" url="https://spatial-img.information.qld.gov.au/arcgis/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="QLD |floodlevel" authcfg="" url="https://spatial-img.information.qld.gov.au/arcgis/rest/services/FloodCheck"/>
+    <arcgisfeatureserver username="" password="" name="SA | LSA" authcfg="" url="https://lsa4.geohub.sa.gov.au/server/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="TAS | LIST Services" authcfg="" url="https://services.thelist.tas.gov.au/arcgis/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="VIC property" authcfg="" url="https://services6.arcgis.com/GB33F62SbDxJjwEL/arcgis/rest/services/Vicmap_Property/FeatureServer/0"/>
+    <arcgisfeatureserver username="" password="" name="VIC | VIC Land" authcfg="" url="https://services6.arcgis.com/GB33F62SbDxJjwEL/ArcGIS/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="WA | GISSDI.DUMP" authcfg="" url="https://gissdi.dmp.wa.gov.au/gisexternal/rest/services/External"/>
+    <arcgisfeatureserver username="" password="" name="WA | SLIP" authcfg="" url="https://public-services.slip.wa.gov.au/public/rest/services"/>
+    <arcgisfeatureserver username="" password="" name="arcgis map" authcfg="" url="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"/>
+    <arcgisfeatureserver username="" password="" name="floodlevel" authcfg="" url="https://spatial-img.information.qld.gov.au/arcgis/rest/services/FloodCheck"/>
+</qgsARCGISFEATURESERVERConnections>

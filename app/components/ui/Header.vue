@@ -9,6 +9,7 @@
       <ul class="nav__links">
         <li><NuxtLink to="/">Home</NuxtLink></li>
         <li><NuxtLink to="/blog">Insights</NuxtLink></li>
+        <li><NuxtLink to="/maps/esri-rest-downloader">ESRI Explorer</NuxtLink></li>
       </ul>
     </nav>
   </header>

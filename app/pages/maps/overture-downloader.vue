@@ -1,15 +1,27 @@
 <template>
   <div class="od-page">
 
-    <!-- ── Left panel ─────────────────────────────────────────────────── -->
-    <aside class="od-panel">
-      <div class="od-panel-inner">
+    <!-- ── Map (full-bleed) ───────────────────────────────────────────── -->
+    <div id="od-map" class="od-map" />
 
-        <!-- Header -->
-        <div class="od-header">
-          <h1 class="od-title">Overture Downloader</h1>
-          <p class="od-subtitle">Extract Overture Maps data to Parquet</p>
+    <!-- ── Left FAB ──────────────────────────────────────────────────── -->
+    <button v-if="!showPanel" class="od-fab od-fab--left" @click="showPanel = true" title="Open Overture Downloader">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </button>
+
+    <!-- ── Left panel ────────────────────────────────────────────────── -->
+    <transition name="od-slide-left">
+      <aside v-if="showPanel" class="od-panel">
+        <div class="od-panel-header">
+          <div class="od-header">
+            <h1 class="od-title">Overture Downloader</h1>
+            <p class="od-subtitle">Extract Overture Maps data to Parquet</p>
+          </div>
+          <button class="od-chevron-btn" @click="showPanel = false" title="Collapse">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
         </div>
+        <div class="od-panel-inner">
 
         <!-- Release -->
         <section class="od-section">
@@ -129,11 +141,70 @@
           </div>
         </section>
 
-      </div>
-    </aside>
+        </div>
+      </aside>
+    </transition>
 
-    <!-- ── Map ────────────────────────────────────────────────────────── -->
-    <div id="od-map" class="od-map" />
+    <!-- ── Right FAB (layers button) ────────────────────────────── -->
+    <button v-if="mapLayers.length > 0 && !showLayers" class="od-fab od-fab--right" @click="showLayers = true" title="Show layers">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      <span class="od-fab-badge">{{ mapLayers.length }}</span>
+    </button>
+
+    <!-- ── Layers panel (right) ──────────────────────────────────── -->
+    <transition name="od-slide-right">
+      <aside v-if="mapLayers.length > 0 && showLayers" class="od-layers-panel">
+        <div class="od-layers-header">
+          <span class="od-label">Layers</span>
+          <button class="od-chevron-btn" @click="showLayers = false" title="Collapse layers">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="od-layer-list">
+          <div v-for="layer in mapLayers" :key="layer.id" class="od-layer-row-wrap">
+            <div class="od-layer-row">
+              <button
+                class="od-layer-swatch od-layer-swatch--btn"
+                :style="{ background: layer.color }"
+                @click="colorPickerOpenId = colorPickerOpenId === layer.id ? null : layer.id"
+                title="Change color"
+              />
+              <div class="od-layer-info">
+                <span class="od-layer-name">{{ layer.label }}</span>
+                <span class="od-layer-meta">{{ layer.rows.toLocaleString() }} features &middot; {{ layer.theme }}</span>
+              </div>
+              <USwitch :modelValue="layer.visible" @update:modelValue="toggleMapLayer(layer.id)" />
+              <button
+                class="od-layer-btn od-layer-btn--remove"
+                @click="removeMapLayer(layer.id)"
+                title="Remove layer"
+              >×</button>
+            </div>
+
+            <!-- Color palette popover -->
+            <div v-if="colorPickerOpenId === layer.id" class="od-color-picker">
+              <button
+                v-for="c in LAYER_PALETTE"
+                :key="c"
+                class="od-color-swatch"
+                :class="{ 'od-color-swatch--active': layer.color === c }"
+                :style="{ background: c }"
+                @click="changeLayerColor(layer.id, c, true)"
+              />
+              <label class="od-color-custom" title="Custom color">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <input
+                  type="color"
+                  :value="layer.color"
+                  @input="changeLayerColor(layer.id, ($event.target as HTMLInputElement).value)"
+                  class="od-color-input"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </transition>
 
   </div>
 </template>
@@ -141,7 +212,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import UButton from '~/components/ui/Button.vue'
-import UInput from '~/components/ui/Input.vue'
+import UInput  from '~/components/ui/Input.vue'
+import USwitch from '~/components/ui/Switch.vue'
 import {
   OVERTURE_PLACES_TAXONOMY,
   childrenAt,
@@ -307,6 +379,222 @@ const getDuckDB = async () => {
   return _conn
 }
 
+// ── Layer Map state ─────────────────────────────────────────────────────────
+interface MapLayer {
+  id: string
+  label: string
+  theme: string
+  category: string | null
+  color: string
+  rows: number
+  visible: boolean
+  mapLayerIds: string[]
+}
+
+let   layerCounter = 0
+let   popup: any = null
+const mapLayers         = ref<MapLayer[]>([])
+const showPanel         = ref(true)
+const showLayers        = ref(true)
+const colorPickerOpenId = ref<string | null>(null)
+
+// Sequential palette — each new layer gets the next distinct colour, cycling after 12
+const LAYER_PALETTE = [
+  '#ef4444', // red
+  '#3b82f6', // blue
+  '#f97316', // orange
+  '#8b5cf6', // violet
+  '#22c55e', // green
+  '#f59e0b', // amber
+  '#06b6d4', // cyan
+  '#ec4899', // pink
+  '#84cc16', // lime
+  '#a855f7', // purple
+  '#14b8a6', // teal
+  '#fb923c', // light-orange
+]
+
+const THEME_COLORS: Record<string, string> = {
+  buildings:      '#f59e0b',
+  transportation: '#60a5fa',
+  addresses:      '#34d399',
+  base:           '#a78bfa',
+}
+
+const getThemeColor = (theme: string): string => THEME_COLORS[theme] ?? '#9ca3af'
+
+// Build GeoJSON from the in-browser parquet file (LIMIT 5000 for map display)
+const buildGeoJSONForMap = async (fileName: string, theme: string, cat: string | null, conn: any, layerColor: string) => {
+  const isPoint = theme === 'places' || theme === 'addresses'
+
+  if (isPoint) {
+    const propSelect = theme === 'places'
+      ? 'longitude, latitude, name, category, website, phone, address, city, brand'
+      : 'longitude, latitude, id'
+    const tbl = await conn.query(
+      `SELECT ${propSelect} FROM read_parquet('${fileName}') WHERE longitude IS NOT NULL LIMIT 5000`
+    )
+    const arr = tbl.toArray()
+    // layerColor is pre-assigned sequentially — same value used for the layer list swatch
+    const features = arr.map((row: any) => {
+      const lon = Number(row.longitude)
+      const lat = Number(row.latitude)
+      if (!isFinite(lon) || !isFinite(lat)) return null
+      const rowCat = String(row.category ?? '')
+      const props: any = { _color: layerColor }
+      if (theme === 'places') {
+        props.name     = String(row.name     ?? '')
+        props.category = rowCat
+        props.website  = String(row.website  ?? '')
+        props.phone    = String(row.phone    ?? '')
+        props.address  = String(row.address  ?? '')
+        props.city     = String(row.city     ?? '')
+        props.brand    = String(row.brand    ?? '')
+      } else {
+        props.id = String(row.id ?? '')
+      }
+      return { type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: props }
+    }).filter(Boolean)
+    return { geojson: { type: 'FeatureCollection', features }, displayRows: features.length }
+  }
+
+  // Polygon / Line — needs spatial extension for WKB → GeoJSON
+  try {
+    await conn.query('INSTALL spatial; LOAD spatial;')
+    const tbl = await conn.query(
+      `SELECT CAST(id AS VARCHAR) AS id, ST_AsGeoJSON(geometry) AS _geom FROM read_parquet('${fileName}') LIMIT 5000`
+    )
+    const arr = tbl.toArray()
+    const features = arr.map((row: any) => {
+      const geomStr = String(row._geom ?? '')
+      if (!geomStr) return null
+      let geom: any
+      try { geom = JSON.parse(geomStr) } catch { return null }
+      return { type: 'Feature', geometry: geom, properties: { _color: layerColor, id: String(row.id ?? '') } }
+    }).filter(Boolean)
+    return { geojson: { type: 'FeatureCollection', features }, displayRows: features.length }
+  } catch {
+    return { geojson: null, displayRows: 0 }
+  }
+}
+
+// Add a GeoJSON FeatureCollection to the map and register hover tooltip
+const addLayerToMap = (entry: MapLayer, geojson: any): string[] => {
+  if (!map) return []
+  const { id: sourceId, theme, category, color } = entry
+  const isPoint = theme === 'places' || theme === 'addresses'
+  const isLine  = theme === 'transportation'
+  const addedIds: string[] = []
+
+  map.addSource(sourceId, { type: 'geojson', data: geojson })
+
+  const getPopup = () => {
+    if (!popup) popup = new window.maplibregl.Popup({ closeButton: false, closeOnClick: false, maxWidth: '280px' })
+    return popup
+  }
+
+  if (isPoint) {
+    const circleId = `${sourceId}-circle`
+    map.addLayer({
+      id: circleId, type: 'circle', source: sourceId,
+      paint: {
+        'circle-color':        ['coalesce', ['get', '_color'], color],
+        'circle-radius':       3,
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 0.5,
+        'circle-opacity':      0.9,
+      },
+    })
+    addedIds.push(circleId)
+    map.on('mouseenter', circleId, (e: any) => {
+      map.getCanvas().style.cursor = 'pointer'
+      const p = e.features[0].properties
+      const lines = [
+        p.name     && `<strong>${p.name}</strong>`,
+        p.brand    && `<span style="opacity:.65">${p.brand}</span>`,
+        p.category && `<em style="opacity:.8">${p.category.replace(/_/g,' ')}</em>`,
+        p.address  && p.address,
+        p.city     && p.city,
+        p.phone    && p.phone,
+        p.website  && `<a href="${p.website}" target="_blank" style="color:#60a5fa;word-break:break-all">${p.website.replace(/^https?:\/\//, '')}</a>`,
+        p.id       && `<span style="opacity:.5;font-size:.65rem">${p.id}</span>`,
+      ].filter(Boolean)
+      getPopup().setLngLat(e.features[0].geometry.coordinates.slice())
+        .setHTML(`<div class="od-popup">${lines.join('<br>')}</div>`)
+        .addTo(map)
+    })
+    map.on('mouseleave', circleId, () => { map.getCanvas().style.cursor = ''; popup?.remove() })
+
+  } else if (isLine) {
+    const lineId = `${sourceId}-line`
+    map.addLayer({
+      id: lineId, type: 'line', source: sourceId,
+      paint: { 'line-color': color, 'line-width': 2, 'line-opacity': 0.8 },
+    })
+    addedIds.push(lineId)
+    map.on('mouseenter', lineId, (e: any) => {
+      map.getCanvas().style.cursor = 'pointer'
+      const p = e.features[0].properties
+      getPopup().setLngLat(e.lngLat)
+        .setHTML(`<div class="od-popup"><em>Transportation</em>${p.id ? `<br><span style="opacity:.6;font-size:.65rem">${p.id}</span>` : ''}</div>`)
+        .addTo(map)
+    })
+    map.on('mouseleave', lineId, () => { map.getCanvas().style.cursor = ''; popup?.remove() })
+
+  } else {
+    const fillId = `${sourceId}-fill`
+    const lineId = `${sourceId}-line`
+    map.addLayer({ id: fillId, type: 'fill',   source: sourceId, paint: { 'fill-color': color, 'fill-opacity': 0.4 } })
+    map.addLayer({ id: lineId, type: 'line',   source: sourceId, paint: { 'line-color': color, 'line-width': 1 } })
+    addedIds.push(fillId, lineId)
+    map.on('mouseenter', fillId, (e: any) => {
+      map.getCanvas().style.cursor = 'pointer'
+      const p = e.features[0].properties
+      getPopup().setLngLat(e.lngLat)
+        .setHTML(`<div class="od-popup"><em>${theme}</em>${p.id ? `<br><span style="opacity:.6;font-size:.65rem">${p.id}</span>` : ''}</div>`)
+        .addTo(map)
+    })
+    map.on('mouseleave', fillId, () => { map.getCanvas().style.cursor = ''; popup?.remove() })
+  }
+
+  return addedIds
+}
+
+const removeMapLayer = (id: string) => {
+  const idx = mapLayers.value.findIndex(l => l.id === id)
+  if (idx === -1) return
+  const layer = mapLayers.value[idx]
+  if (map) {
+    for (const lid of layer.mapLayerIds) { if (map.getLayer(lid)) map.removeLayer(lid) }
+    if (map.getSource(id)) map.removeSource(id)
+  }
+  mapLayers.value.splice(idx, 1)
+}
+
+const toggleMapLayer = (id: string) => {
+  const layer = mapLayers.value.find(l => l.id === id)
+  if (!layer || !map) return
+  layer.visible = !layer.visible
+  const vis = layer.visible ? 'visible' : 'none'
+  for (const lid of layer.mapLayerIds) {
+    if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', vis)
+  }
+}
+
+const changeLayerColor = (id: string, newColor: string, close = false) => {
+  const layer = mapLayers.value.find(l => l.id === id)
+  if (!layer) return
+  layer.color = newColor
+  if (close) colorPickerOpenId.value = null
+  if (!map) return
+  for (const lid of layer.mapLayerIds) {
+    if (!map.getLayer(lid)) continue
+    if      (lid.endsWith('-circle')) map.setPaintProperty(lid, 'circle-color', newColor)
+    else if (lid.endsWith('-fill'))   map.setPaintProperty(lid, 'fill-color',   newColor)
+    else if (lid.endsWith('-line'))   map.setPaintProperty(lid, 'line-color',   newColor)
+  }
+}
+
 // ── Extract ─────────────────────────────────────────────────────────────────
 const status = ref<null | 'loading' | 'success' | 'error'>(null)
 const result = ref<any>(null)
@@ -400,6 +688,29 @@ const extract = async () => {
 
     result.value = { rows, fileName, sizeBytes: buffer.byteLength }
     status.value = 'success'
+
+    // Build in-browser GeoJSON from the parquet and add to map (max 5 000 features)
+    try {
+      const sourceId   = `od-data-${layerCounter}`
+      // Sequential colour: places cycle through LAYER_PALETTE; other themes use fixed theme colour
+      const layerColor = theme === 'places'
+        ? LAYER_PALETTE[layerCounter % LAYER_PALETTE.length]
+        : getThemeColor(theme)
+      layerCounter++
+      const { geojson, displayRows } = await buildGeoJSONForMap(fileName, theme, cat, conn, layerColor)
+      if (geojson && displayRows > 0) {
+        const themeLabel = THEMES.find(t => t.id === theme)?.label ?? theme
+        const label = cat ? `${themeLabel} — ${cat.replace(/_/g, ' ')}` : themeLabel
+        const entry: MapLayer = {
+          id: sourceId, label, theme, category: cat,
+          color: layerColor,
+          rows: displayRows, visible: true, mapLayerIds: [],
+        }
+        mapLayers.value.push(entry)
+        entry.mapLayerIds = addLayerToMap(entry, geojson)
+        showLayers.value = true
+      }
+    } catch { /* map preview failures are non-fatal */ }
   } catch (err: any) {
     result.value = { error: err?.message ?? 'Unknown error' }
     status.value = 'error'
@@ -483,37 +794,316 @@ onUnmounted(() => {
 <style scoped>
 /* ── Layout ──────────────────────────────────────────────────────────────── */
 .od-page {
-  display: flex;
+  position: relative;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
   background: #0a0a12;
-  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif;
 }
 
+/* Map fills the whole page */
+.od-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Left floating panel ──────────────────────────────────────────────── */
 .od-panel {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  bottom: 1rem;
   width: 340px;
-  flex-shrink: 0;
-  background: hsl(var(--card));
-  border-right: 1px solid hsl(var(--border));
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 10;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.od-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1rem 1rem 0.85rem;
+  border-bottom: 1px solid hsl(var(--border));
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+.od-panel-header .od-header {
+  padding-bottom: 0;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.od-chevron-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: background 0.15s, color 0.15s;
+}
+.od-chevron-btn:hover {
+  background: hsl(var(--border));
+  color: hsl(var(--foreground));
 }
 
 .od-panel-inner {
   flex: 1;
   overflow-y: auto;
-  padding: 1.25rem;
+  padding: 0 1.25rem 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 0;
 }
 
-.od-map {
+/* ── FAB toggle buttons ───────────────────────────────────────────────── */
+.od-fab {
+  position: absolute;
+  top: 1rem;
+  z-index: 20;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.od-fab:hover {
+  background: hsl(var(--card));
+  box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+}
+.od-fab--left  { left: 1rem; }
+.od-fab--right { right: 1rem; }
+
+.od-fab-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 0.55rem;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--background));
+}
+
+/* ── Right layers panel ──────────────────────────────────────────────────── */
+.od-layers-panel {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 340px;
+  max-height: calc(100vh - 2rem);
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 10;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.od-layers-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.od-layer-list {
   flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.od-layer-list::-webkit-scrollbar { width: 4px; }
+.od-layer-list::-webkit-scrollbar-track { background: transparent; }
+.od-layer-list::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 2px; }
+
+.od-layer-row-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.od-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.15rem;
+}
+
+.od-layer-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12);
+}
+
+.od-layer-swatch--btn {
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.od-layer-swatch--btn:hover {
+  transform: scale(1.35);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.35);
+}
+
+/* Color palette popover */
+.od-color-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.4rem 0.5rem;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+}
+
+.od-color-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.1);
+  transition: transform 0.1s, border-color 0.1s;
+  flex-shrink: 0;
+}
+.od-color-swatch:hover  { transform: scale(1.3); }
+.od-color-swatch--active {
+  border-color: #fff;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
+  transform: scale(1.15);
+}
+
+.od-color-custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.od-color-custom:hover { background: hsl(var(--border)); }
+
+.od-color-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding: 0;
+}
+
+.od-layer-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.od-layer-name {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.od-layer-meta {
+  font-size: 0.6rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.od-layer-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.85rem;
+  padding: 0.1rem 0.2rem;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.od-layer-btn:hover { color: hsl(var(--foreground)); background: hsl(var(--border)); }
+.od-layer-btn--muted { opacity: 0.35; }
+.od-layer-btn--remove:hover { color: #ef4444; background: rgba(239,68,68,0.12); }
+
+/* slide transitions */
+.od-slide-left-enter-active,
+.od-slide-left-leave-active {
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease;
+}
+.od-slide-left-enter-from,
+.od-slide-left-leave-to {
+  transform: translateX(-1.5rem);
+  opacity: 0;
+}
+
+.od-slide-right-enter-active,
+.od-slide-right-leave-active {
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease;
+}
+.od-slide-right-enter-from,
+.od-slide-right-leave-to {
+  transform: translateX(1.5rem);
+  opacity: 0;
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────────── */
@@ -688,5 +1278,24 @@ onUnmounted(() => {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
+}
+
+/* ── MapLibre popup ──────────────────────────────────────────────────────── */
+:global(.maplibregl-popup-content) {
+  background: rgba(10,10,22,0.92) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 8px !important;
+  padding: 0.5rem 0.65rem !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.55) !important;
+}
+:global(.maplibregl-popup-tip) {
+  display: none !important;
+}
+:global(.od-popup) {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: #e2e8f0;
 }
 </style>
