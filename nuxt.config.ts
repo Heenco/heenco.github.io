@@ -2,7 +2,14 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+  vite: {
+    optimizeDeps: {
+      // duckdb-wasm ships its own WASM bundles — don't let Vite pre-bundle it
+      exclude: ['@duckdb/duckdb-wasm'],
+    },
+  },
   modules: [
+    '@nuxtjs/tailwindcss',
     'shadcn-nuxt'
   ],
   shadcn: {
