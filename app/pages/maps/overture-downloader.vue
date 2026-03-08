@@ -338,9 +338,31 @@ const extract = async () => {
     const catWhere  = cat ? `categories.primary = '${cat}' AND ` : ''
     // For point features (places/addresses) derive lon/lat from bbox struct — no spatial ext needed
     const isPoint   = theme === 'places' || theme === 'addresses'
-    const geoSelect = isPoint
-      ? `* EXCLUDE (geometry), bbox.xmin AS longitude, bbox.ymin AS latitude, geometry`
-      : `* EXCLUDE (geometry), geometry`
+    // For places: flatten the most useful nested fields into top-level columns
+    // names.primary → name, websites[1] → website, phones[1] → phone,
+    // categories.primary → category, addresses[1].freeform → address
+    const geoSelect = theme === 'places'
+      ? `id,
+         names.primary AS name,
+         categories.primary AS category,
+         confidence,
+         websites[1] AS website,
+         phones[1] AS phone,
+         emails[1] AS email,
+         addresses[1].freeform AS address,
+         addresses[1].locality AS city,
+         addresses[1].region AS state,
+         addresses[1].postcode AS postcode,
+         addresses[1].country AS country,
+         brand.names.primary AS brand,
+         bbox.xmin AS longitude,
+         bbox.ymin AS latitude,
+         sources[1].dataset AS source,
+         update_time,
+         geometry`
+      : isPoint
+        ? `* EXCLUDE (geometry), bbox.xmin AS longitude, bbox.ymin AS latitude, geometry`
+        : `* EXCLUDE (geometry), geometry`
 
     const sql = `
       COPY (
