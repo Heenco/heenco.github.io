@@ -18,7 +18,9 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     public: {
-      mapboxToken: process.env.NUXT_PUBLIC_MAPBOX_TOKEN
+      mapboxToken: process.env.NUXT_PUBLIC_MAPBOX_TOKEN,
+      upstashRedisUrl: process.env.UPSTASH_REDIS_REST_URL,
+      upstashRedisToken: process.env.UPSTASH_REDIS_REST_TOKEN,
     }
   },
   app: {

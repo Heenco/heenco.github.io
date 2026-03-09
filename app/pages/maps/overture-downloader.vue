@@ -16,6 +16,10 @@
           <div class="od-header">
             <h1 class="od-title">Overture Downloader</h1>
             <p class="od-subtitle">Extract Overture Maps data to Parquet</p>
+            <span v-if="viewCount !== null" class="od-view-count">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              {{ viewCount.toLocaleString() }} views
+            </span>
           </div>
           <button class="od-chevron-btn" @click="showPanel = false" title="Collapse">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -221,6 +225,8 @@ import {
   getAllDescendantIds,
   type TaxonomyNode,
 } from '~/config/overtureTaxonomy'
+
+const { viewCount } = usePageViews()
 
 useHead({
   link: [
@@ -1130,6 +1136,16 @@ onUnmounted(() => {
   font-size: 0.72rem;
   color: hsl(var(--muted-foreground));
   margin: 0;
+}
+
+.od-view-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  color: hsl(var(--muted-foreground));
+  margin-top: 0.25rem;
+  opacity: 0.75;
 }
 
 /* ── Sections ────────────────────────────────────────────────────────────── */
