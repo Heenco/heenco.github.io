@@ -146,8 +146,63 @@
         </section>
 
         </div>
+
+        <!-- ── Panel footer ─────────────────────────────────────────── -->
+        <div class="od-panel-footer">
+          <button class="od-bug-btn" @click="showBugModal = true">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h8"/><path d="M9 3H7a3 3 0 0 0-3 3v2a5 5 0 0 0 5 5h4a5 5 0 0 0 5-5V6a3 3 0 0 0-3-3h-2"/><path d="M2 13h4"/><path d="M18 13h4"/><path d="M12 19v3"/><path d="M8 19a4 4 0 0 0 8 0"/></svg>
+            Report a bug
+          </button>
+        </div>
       </aside>
     </transition>
+
+    <!-- ── Bug report modal ──────────────────────────────────────────── -->
+    <teleport to="body">
+      <transition name="od-fade">
+        <div v-if="showBugModal" class="od-modal-overlay" @click.self="closeBugModal">
+          <div class="od-modal">
+            <div class="od-modal-header">
+              <h2 class="od-modal-title">Report a Bug</h2>
+              <button class="od-chevron-btn" @click="closeBugModal" title="Close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="od-modal-body">
+              <div class="od-bug-context">
+                <span><strong>Page:</strong> /maps/overture-downloader</span>
+                <span><strong>Theme:</strong> {{ selectedTheme }}</span>
+                <span><strong>Release:</strong> {{ release }}</span>
+              </div>
+              <label class="od-label" style="margin-top: 0.75rem; display: block">Description <span style="color: #ef4444">*</span></label>
+              <textarea
+                v-model="bugDescription"
+                class="od-bug-textarea"
+                placeholder="Describe what happened and what you expected…"
+                rows="5"
+              />
+              <label class="od-label" style="margin-top: 0.75rem; display: block">Email <span style="opacity:0.5; text-transform:none; font-weight:400">(optional — for follow-up)</span></label>
+              <input v-model="bugEmail" type="email" class="od-bug-input" placeholder="you@example.com" />
+            </div>
+            <div class="od-modal-footer">
+              <div v-if="bugStatus === 'success'" class="od-msg od-msg-success" style="flex:1; margin:0">✓ Report received — thanks!</div>
+              <div v-else-if="bugStatus === 'error'" class="od-msg od-msg-error" style="flex:1; margin:0">✗ Failed to send. Please try again.</div>
+              <template v-if="bugStatus !== 'success'">
+                <UButton variant="outline" size="sm" @click="closeBugModal">Cancel</UButton>
+                <UButton
+                  variant="primary"
+                  size="sm"
+                  :disabled="!bugDescription.trim() || bugStatus === 'submitting'"
+                  @click="submitBugReport"
+                >
+                  {{ bugStatus === 'submitting' ? 'Sending…' : 'Submit report' }}
+                </UButton>
+              </template>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
 
     <!-- ── Right FAB (layers button) ────────────────────────────── -->
     <button v-if="mapLayers.length > 0 && !showLayers" class="od-fab od-fab--right" @click="showLayers = true" title="Show layers">
@@ -403,6 +458,60 @@ const mapLayers         = ref<MapLayer[]>([])
 const showPanel         = ref(true)
 const showLayers        = ref(true)
 const colorPickerOpenId = ref<string | null>(null)
+
+// ── Bug report ───────────────────────────────────────────────────────────
+const showBugModal   = ref(false)
+const bugDescription = ref('')
+const bugEmail       = ref('')
+const bugStatus      = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+
+function closeBugModal() {
+  showBugModal.value = false
+  bugStatus.value = 'idle'
+  bugDescription.value = ''
+  bugEmail.value = ''
+}
+
+async function submitBugReport() {
+  if (!bugDescription.value.trim()) return
+  const config = useRuntimeConfig()
+  const { upstashRedisUrl, upstashRedisToken } = config.public as {
+    upstashRedisUrl?: string
+    upstashRedisToken?: string
+  }
+  if (!upstashRedisUrl || !upstashRedisToken) {
+    bugStatus.value = 'error'
+    return
+  }
+  bugStatus.value = 'submitting'
+  const payload = JSON.stringify({
+    page: '/maps/overture-downloader',
+    timestamp: new Date().toISOString(),
+    release: release.value,
+    theme: selectedTheme.value,
+    bbox: bbox.value,
+    description: bugDescription.value.trim(),
+    email: bugEmail.value.trim() || null,
+    userAgent: navigator.userAgent,
+  })
+  try {
+    const res = await fetch(upstashRedisUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${upstashRedisToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(['LPUSH', 'bugs:/maps/overture-downloader', payload]),
+    })
+    if (!res.ok) throw new Error('non-2xx')
+    bugStatus.value = 'success'
+    bugDescription.value = ''
+    bugEmail.value = ''
+    setTimeout(closeBugModal, 2500)
+  } catch {
+    bugStatus.value = 'error'
+  }
+}
 
 // Sequential palette — each new layer gets the next distinct colour, cycling after 12
 const LAYER_PALETTE = [
@@ -1313,5 +1422,134 @@ onUnmounted(() => {
   font-size: 0.72rem;
   line-height: 1.6;
   color: #e2e8f0;
+}
+
+/* ── Panel footer ─────────────────────────────────────────────────────────── */
+.od-panel-footer {
+  flex-shrink: 0;
+  padding: 0.65rem 1rem;
+  border-top: 1px solid hsl(var(--border));
+  display: flex;
+  align-items: center;
+}
+
+.od-bug-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  color: hsl(var(--muted-foreground));
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s;
+}
+.od-bug-btn:hover {
+  opacity: 1;
+  color: hsl(var(--foreground));
+}
+
+/* ── Bug report modal ─────────────────────────────────────────────────────── */
+.od-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.od-modal {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif;
+}
+
+.od-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.od-modal-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin: 0;
+}
+
+.od-modal-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.od-bug-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  font-size: 0.68rem;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.4);
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  margin-bottom: 0.25rem;
+}
+
+.od-bug-textarea,
+.od-bug-input {
+  width: 100%;
+  margin-top: 0.4rem;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  color: hsl(var(--foreground));
+  font-size: 0.8rem;
+  padding: 0.5rem 0.65rem;
+  box-sizing: border-box;
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+.od-bug-textarea:focus,
+.od-bug-input:focus {
+  border-color: hsl(var(--ring));
+}
+.od-bug-input {
+  resize: none;
+}
+
+.od-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid hsl(var(--border));
+}
+
+/* ── Modal fade transition ───────────────────────────────────────────────── */
+.od-fade-enter-active,
+.od-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+.od-fade-enter-from,
+.od-fade-leave-to {
+  opacity: 0;
 }
 </style>
