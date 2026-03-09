@@ -52,7 +52,26 @@
         <span>Layers</span>
       </div>
       <div v-show="layerListExpanded" class="layer-items">
-        <!-- Places (unfiltered test mode) -->
+        <!-- Population -->
+        <div v-for="layer in layers.filter(l => l.id === 'population')" :key="layer.id" class="layer-item">
+          <label class="layer-label" @click.prevent="toggleLayer(layer.id)">
+            <button 
+              type="button"
+              role="switch"
+              :aria-checked="layer.visible"
+              class="layer-switch"
+              :class="{ active: layer.visible }"
+            >
+              <span class="layer-switch-thumb"></span>
+            </button>
+            <div class="layer-info">
+              <span class="layer-name">{{ layer.name }}</span>
+              <span v-if="layer.description" class="layer-description">{{ layer.description }}</span>
+            </div>
+          </label>
+        </div>
+
+        <!-- Places -->
         <div class="layer-item">
           <label class="layer-label" @click.prevent="togglePlaces">
             <button 
@@ -69,30 +88,10 @@
               <span class="layer-description">Points of interest from Overture Maps</span>
             </div>
           </label>
-          <!-- Category controls intentionally disabled while debugging zoom visibility -->
         </div>
 
-        <!-- Fitness Facilities (Parquet) -->
-        <div class="layer-item">
-          <label class="layer-label" @click.prevent="toggleFitness">
-            <button 
-              type="button"
-              role="switch"
-              :aria-checked="fitnessVisible"
-              class="layer-switch"
-              :class="{ active: fitnessVisible }"
-            >
-              <span class="layer-switch-thumb"></span>
-            </button>
-            <div class="layer-info">
-              <span class="layer-name">Fitness Facilities</span>
-              <span class="layer-description">Gyms &amp; fitness centres across Australia</span>
-            </div>
-          </label>
-        </div>
-
-        <!-- Other layers -->
-        <div v-for="layer in layers" :key="layer.id" class="layer-item">
+        <!-- Foursquare + remaining layers -->
+        <div v-for="layer in layers.filter(l => l.id !== 'population')" :key="layer.id" class="layer-item">
           <label class="layer-label" @click.prevent="toggleLayer(layer.id)">
             <button 
               type="button"
@@ -156,7 +155,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { mapLayers, placesSource } from '~/config/mapLayers';
-import { loadParquetAsHexbins } from '~/lib/parquetMapUtils';
 
 const config = useRuntimeConfig();
 let map = null;
@@ -169,18 +167,13 @@ const currentBasemap = ref('dark-matter');
 const selectedBasemap = ref('dark-matter');
 const layers = ref(mapLayers.map(l => ({ id: l.id, name: l.name, description: l.description, visible: l.visible })));
 const placesVisible = ref(true);
-const fitnessVisible = ref(true);
-const fitnessLoaded = ref(false);
 let debounceTimer = null;
 
-const FITNESS_SOURCE_ID = 'fitness-facilities';
-const FITNESS_LAYER_FILL = 'fitness-facilities-fill';
-const FITNESS_LAYER_LINE = 'fitness-facilities-line';
 const PMTILES_SCRIPT_URL = 'https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js';
 let pmtilesProtocolAdded = false;
 const MAPLIBRE_CSS_URL = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
 const MAPLIBRE_JS_URL = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
-const DEFAULT_VIEW = { lng: 151.2093, lat: -33.8688, zoom: 12 };
+const DEFAULT_VIEW = { lng: 134.0, lat: -27.0, zoom: 4 };
 
 const loadScript = (src) => new Promise((resolve, reject) => {
   const existingScript = document.querySelector(`script[src="${src}"]`);
@@ -323,7 +316,6 @@ const initMap = () => {
       addOvertureLayers();
       syncViewToUrl();
       setupPopulationInspection();
-      addFitnessLayer();
     });
     map.on('style.load', () => {
       addPmtilesProtocol();
@@ -588,71 +580,6 @@ const togglePlaces = () => {
   if (map.getLayer(PLACES_LAYER_ID)) {
     map.setLayoutProperty(PLACES_LAYER_ID, 'visibility', placesVisible.value ? 'visible' : 'none');
   }
-};
-
-const addFitnessLayer = async () => {
-  if (!map || fitnessLoaded.value) return;
-  try {
-    const url = `${window.location.origin}/fitness_facilities_australia.parquet`;
-    const geojson = await loadParquetAsHexbins(url, 8);
-
-    // Compute max count for colour scale
-    const counts = geojson.features.map(f => f.properties.count);
-    const maxCount = Math.max(...counts, 1);
-
-    if (!map.getSource(FITNESS_SOURCE_ID)) {
-      map.addSource(FITNESS_SOURCE_ID, { type: 'geojson', data: geojson });
-    }
-
-    const visibility = fitnessVisible.value ? 'visible' : 'none';
-
-    if (!map.getLayer(FITNESS_LAYER_FILL)) {
-      map.addLayer({
-        id: FITNESS_LAYER_FILL,
-        type: 'fill',
-        source: FITNESS_SOURCE_ID,
-        paint: {
-          'fill-color': [
-            'interpolate', ['linear'],
-            ['get', 'count'],
-            0,       '#0e4166',
-            Math.round(maxCount * 0.1), '#0369a1',
-            Math.round(maxCount * 0.3), '#06b6d4',
-            Math.round(maxCount * 0.6), '#22d3ee',
-            maxCount, '#ecfeff',
-          ],
-          'fill-opacity': 0.75,
-        },
-        layout: { visibility },
-      });
-    }
-
-    if (!map.getLayer(FITNESS_LAYER_LINE)) {
-      map.addLayer({
-        id: FITNESS_LAYER_LINE,
-        type: 'line',
-        source: FITNESS_SOURCE_ID,
-        paint: {
-          'line-color': '#000000',
-          'line-width': 0.4,
-          'line-opacity': 0.3,
-        },
-        layout: { visibility },
-      });
-    }
-
-    fitnessLoaded.value = true;
-  } catch (err) {
-    console.error('Failed to load fitness facilities parquet:', err);
-  }
-};
-
-const toggleFitness = () => {
-  fitnessVisible.value = !fitnessVisible.value;
-  if (!map) return;
-  const visibility = fitnessVisible.value ? 'visible' : 'none';
-  if (map.getLayer(FITNESS_LAYER_FILL)) map.setLayoutProperty(FITNESS_LAYER_FILL, 'visibility', visibility);
-  if (map.getLayer(FITNESS_LAYER_LINE)) map.setLayoutProperty(FITNESS_LAYER_LINE, 'visibility', visibility);
 };
 
 const toggleLayer = (layerId) => {

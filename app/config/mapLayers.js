@@ -24,6 +24,70 @@ export const placeCategories = [
 ];
 
 export const mapLayers = [
+  // --- KONTUR POPULATION ---
+  {
+    id: 'population',
+    name: 'Population',
+    description: 'Population density (H3 hexagons)',
+    visible: false,
+    source: {
+      type: 'vector',
+      url: 'pmtiles:///kontur_population_AU.pmtiles',
+      minzoom: 2,
+      maxzoom: 12
+    },
+    layer: {
+      type: 'fill',
+      'source-layer': 'population',
+      minzoom: 2,
+      maxzoom: 14,
+      paint: {
+        'fill-color': [
+          'interpolate', ['linear'], ['get', 'population'],
+          0,    '#ffffcc',
+          10,   '#c7e9b4',
+          50,   '#7fcdbb',
+          100,  '#41b6c4',
+          500,  '#1d91c0',
+          1000, '#225ea8',
+          5000, '#0c2c84'
+        ],
+        'fill-opacity': [
+          'interpolate', ['linear'], ['zoom'],
+          2,  0.3,
+          7,  0.4,
+          9,  0.7,
+          12, 0.8
+        ],
+        'fill-outline-color': 'rgba(0,0,0,0)'
+      }
+    }
+  },
+
+  // --- FOURSQUARE PLACES ---
+  {
+    id: 'fsq-places',
+    name: 'Foursquare Places',
+    description: 'POIs from Foursquare Open Source',
+    visible: false,
+    source: {
+      type: 'vector',
+      url: 'pmtiles://https://fsq-os-places-us-east-1.s3.us-east-1.amazonaws.com/release/vector-tiles/latest/fsq-os-places.pmtiles'
+    },
+    layer: {
+      type: 'circle',
+      'source-layer': 'places',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 1.5, 6, 2, 9, 2.5, 12, 3.5, 16, 5],
+        'circle-color': '#06b6d4',
+        'circle-opacity': ['interpolate', ['linear'], ['zoom'], 3, 0.5, 6, 0.65, 10, 0.8, 14, 0.95],
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 3, 0.3, 10, 0.6, 16, 1],
+        'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 3, 0.3, 10, 0.6, 16, 0.8]
+      }
+    }
+  },
+
   // --- ADDRESSES ---
   {
     id: 'addresses',
@@ -129,68 +193,4 @@ export const mapLayers = [
       }
     }
   },
-
-  // --- KONTUR POPULATION ---
-  {
-    id: 'population',
-    name: 'Population',
-    description: 'Population density (H3 hexagons)',
-    visible: false,
-    source: {
-      type: 'vector',
-      url: 'pmtiles:///kontur_population_AU.pmtiles',
-      minzoom: 2,
-      maxzoom: 12
-    },
-    layer: {
-      type: 'fill',
-      'source-layer': 'population',
-      minzoom: 2,
-      maxzoom: 14,
-      paint: {
-        'fill-color': [
-          'interpolate', ['linear'], ['get', 'population'],
-          0,    '#ffffcc',
-          10,   '#c7e9b4',
-          50,   '#7fcdbb',
-          100,  '#41b6c4',
-          500,  '#1d91c0',
-          1000, '#225ea8',
-          5000, '#0c2c84'
-        ],
-        'fill-opacity': [
-          'interpolate', ['linear'], ['zoom'],
-          2,  0.3,
-          7,  0.4,
-          9,  0.7,
-          12, 0.8
-        ],
-        'fill-outline-color': 'rgba(0,0,0,0)'
-      }
-    }
-  },
-
-  // --- FOURSQUARE PLACES ---
-  {
-    id: 'fsq-places',
-    name: 'Foursquare Places',
-    description: 'POIs from Foursquare Open Source',
-    visible: false,
-    source: {
-      type: 'vector',
-      url: 'pmtiles://https://fsq-os-places-us-east-1.s3.us-east-1.amazonaws.com/release/vector-tiles/latest/fsq-os-places.pmtiles'
-    },
-    layer: {
-      type: 'circle',
-      'source-layer': 'places',
-      paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 1.5, 6, 2, 9, 2.5, 12, 3.5, 16, 5],
-        'circle-color': '#06b6d4',
-        'circle-opacity': ['interpolate', ['linear'], ['zoom'], 3, 0.5, 6, 0.65, 10, 0.8, 14, 0.95],
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 3, 0.3, 10, 0.6, 16, 1],
-        'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 3, 0.3, 10, 0.6, 16, 0.8]
-      }
-    }
-  }
 ];
