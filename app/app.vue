@@ -13,7 +13,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
-const isMapPage = computed(() => route.path.startsWith('/maps'))
+const isMapPage = computed(() => route.path.startsWith('/maps') || route.path.startsWith('/tools'))
 </script>
 
 <style scoped>

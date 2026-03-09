@@ -9,6 +9,38 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     </button>
 
+    <!-- ── Location search (above left panel) ───────────────────────── -->
+    <div v-if="showPanel" class="od-search-wrapper" ref="searchWrapperRef">
+      <div class="od-search-container">
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search location…"
+          class="od-search-input"
+          @input="fetchSuggestions"
+          @keyup.enter="searchLocation"
+          @focus="showSuggestions = true"
+        />
+        <button v-if="searchQuery" class="od-search-btn od-search-clear" @click="clearSearch" title="Clear">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <button class="od-search-btn" @click="searchLocation" title="Search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+      </div>
+      <div v-if="showSuggestions && suggestions.length > 0" class="od-suggestions">
+        <div
+          v-for="s in suggestions"
+          :key="s.id"
+          class="od-suggestion"
+          @click="selectSuggestion(s)"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span class="od-suggestion-name">{{ s.place_name }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Left panel ────────────────────────────────────────────────── -->
     <transition name="od-slide-left">
       <aside v-if="showPanel" class="od-panel">
@@ -136,9 +168,17 @@
             Large bboxes may take a few minutes.
           </div>
           <div v-if="result && status === 'success'" class="od-msg od-msg-success">
-            <div>✓ <strong>{{ result.rows.toLocaleString() }}</strong> rows saved</div>
-            <div class="od-result-file">{{ result.fileName }}</div>
-            <div class="od-result-meta">{{ (result.sizeBytes / 1e6).toFixed(2) }} MB</div>
+            <div class="od-result-row">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>{{ result.rows.toLocaleString() }} rows saved</span>
+            </div>
+            <div class="od-result-row od-result-secondary">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span class="od-result-file-group">
+                <span class="od-result-file">{{ result.fileName }}</span>
+                <span class="od-result-size">{{ (result.sizeBytes / 1e6).toFixed(2) }} MB</span>
+              </span>
+            </div>
           </div>
           <div v-if="result && status === 'error'" class="od-msg od-msg-error">
             ✗ {{ result.error }}
@@ -170,7 +210,7 @@
             </div>
             <div class="od-modal-body">
               <div class="od-bug-context">
-                <span><strong>Page:</strong> /maps/overture-downloader</span>
+                <span><strong>Page:</strong> /tools/overture-downloader</span>
                 <span><strong>Theme:</strong> {{ selectedTheme }}</span>
                 <span><strong>Release:</strong> {{ release }}</span>
               </div>
@@ -282,6 +322,107 @@ import {
 } from '~/config/overtureTaxonomy'
 
 const { viewCount } = usePageViews()
+const config = useRuntimeConfig()
+
+// ── Location search ─────────────────────────────────────────────────────────
+const searchWrapperRef  = ref<HTMLElement | null>(null)
+const searchQuery       = ref('')
+const suggestions       = ref<any[]>([])
+const showSuggestions   = ref(false)
+let   searchDebounce: ReturnType<typeof setTimeout> | null = null
+
+function fetchSuggestions() {
+  if (searchDebounce) clearTimeout(searchDebounce)
+  if (!searchQuery.value.trim()) {
+    suggestions.value = []
+    showSuggestions.value = false
+    return
+  }
+  searchDebounce = setTimeout(async () => {
+    const token = (config.public as any).mapboxToken
+    if (!token) return
+    try {
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQuery.value)}.json?access_token=${token}&limit=5&autocomplete=true`
+      )
+      const data = await res.json()
+      suggestions.value = data.features ?? []
+      showSuggestions.value = true
+    } catch { suggestions.value = [] }
+  }, 300)
+}
+
+function placeSearchMarker(lng: number, lat: number) {
+  if (!map) return
+  const geojson = {
+    type: 'FeatureCollection',
+    features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] } }],
+  }
+  if (map.getSource('od-search-marker')) {
+    map.getSource('od-search-marker').setData(geojson)
+  } else {
+    map.addSource('od-search-marker', { type: 'geojson', data: geojson })
+    map.addLayer({
+      id: 'od-search-marker-halo',
+      type: 'circle',
+      source: 'od-search-marker',
+      paint: { 'circle-radius': 11, 'circle-color': '#ffffff', 'circle-opacity': 0.9 },
+    })
+    map.addLayer({
+      id: 'od-search-marker-dot',
+      type: 'circle',
+      source: 'od-search-marker',
+      paint: { 'circle-radius': 5, 'circle-color': '#f97316', 'circle-opacity': 1 },
+    })
+  }
+}
+
+function clearSearchMarker() {
+  if (!map) return
+  if (map.getLayer('od-search-marker-dot'))  map.removeLayer('od-search-marker-dot')
+  if (map.getLayer('od-search-marker-halo')) map.removeLayer('od-search-marker-halo')
+  if (map.getSource('od-search-marker'))     map.removeSource('od-search-marker')
+}
+
+function clearSearch() {
+  searchQuery.value = ''
+  suggestions.value = []
+  showSuggestions.value = false
+  clearSearchMarker()
+}
+
+function selectSuggestion(s: any) {
+  searchQuery.value = s.place_name
+  suggestions.value = []
+  showSuggestions.value = false
+  const [lng, lat] = s.center
+  placeSearchMarker(lng, lat)
+  map?.flyTo({ center: [lng, lat], zoom: 10, essential: true })
+}
+
+async function searchLocation() {
+  if (!searchQuery.value.trim()) return
+  showSuggestions.value = false
+  const token = (config.public as any).mapboxToken
+  if (!token) return
+  try {
+    const res = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQuery.value)}.json?access_token=${token}&limit=1`
+    )
+    const data = await res.json()
+    if (data.features?.length) {
+      const [lng, lat] = data.features[0].center
+      placeSearchMarker(lng, lat)
+      map?.flyTo({ center: [lng, lat], zoom: 10, essential: true })
+    }
+  } catch {}
+}
+
+function handleSearchClickOutside(e: MouseEvent) {
+  if (searchWrapperRef.value && !searchWrapperRef.value.contains(e.target as Node)) {
+    showSuggestions.value = false
+  }
+}
 
 useHead({
   link: [
@@ -320,7 +461,8 @@ const THEMES = [
 ]
 
 // ── Bbox ────────────────────────────────────────────────────────────────────
-const bbox = ref({ min_lon: 113.0, min_lat: -44.0, max_lon: 154.0, max_lat: -10.0 })
+const bbox = ref({ min_lon: 151.18, min_lat: -33.92, max_lon: 151.24, max_lat: -33.85 })
+const bboxDrawn = ref(true)
 
 const useMapView = () => {
   if (!map) return
@@ -331,6 +473,7 @@ const useMapView = () => {
     max_lon: parseFloat(b.getEast().toFixed(4)),
     max_lat: parseFloat(b.getNorth().toFixed(4)),
   }
+  bboxDrawn.value = true
 }
 
 const fitMapToBbox = () => {
@@ -342,7 +485,7 @@ const fitMapToBbox = () => {
 }
 
 const updateBboxRect = () => {
-  if (!map) return
+  if (!map || !bboxDrawn.value) return
   const s = map.getSource('od-bbox')
   if (!s) return
   const { min_lon, min_lat, max_lon, max_lat } = bbox.value
@@ -474,7 +617,6 @@ function closeBugModal() {
 
 async function submitBugReport() {
   if (!bugDescription.value.trim()) return
-  const config = useRuntimeConfig()
   const { upstashRedisUrl, upstashRedisToken } = config.public as {
     upstashRedisUrl?: string
     upstashRedisToken?: string
@@ -485,7 +627,7 @@ async function submitBugReport() {
   }
   bugStatus.value = 'submitting'
   const payload = JSON.stringify({
-    page: '/maps/overture-downloader',
+    page: '/tools/overture-downloader',
     timestamp: new Date().toISOString(),
     release: release.value,
     theme: selectedTheme.value,
@@ -501,7 +643,7 @@ async function submitBugReport() {
         Authorization: `Bearer ${upstashRedisToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(['LPUSH', 'bugs:/maps/overture-downloader', payload]),
+      body: JSON.stringify(['LPUSH', 'bugs:/tools/overture-downloader', payload]),
     })
     if (!res.ok) throw new Error('non-2xx')
     bugStatus.value = 'success'
@@ -839,8 +981,8 @@ const initMap = () => {
   map = new window.maplibregl.Map({
     container: 'od-map',
     style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-    center: [133.5, -27.0],
-    zoom: 3.5,
+    center: [151.2093, -33.8688],
+    zoom: 10,
     attributionControl: false,
   })
 
@@ -862,6 +1004,7 @@ const initMap = () => {
       source: 'od-bbox',
       paint: { 'line-color': '#f59e0b', 'line-width': 2, 'line-dasharray': [5, 3] },
     })
+    // Don't draw bbox on load — only show it after user draws or sets one
     updateBboxRect()
   })
 
@@ -888,6 +1031,7 @@ const initMap = () => {
     drawStart = null
     map.dragPan.enable()
     map.getCanvas().style.cursor = ''
+    bboxDrawn.value = true
   })
 }
 
@@ -898,11 +1042,14 @@ onMounted(() => {
   document.head.appendChild(link)
 
   loadScript(MAPLIBRE_JS).then(initMap).catch(console.error)
+  document.addEventListener('click', handleSearchClickOutside)
 })
 
 onUnmounted(() => {
   map?.remove()
   map = null
+  document.removeEventListener('click', handleSearchClickOutside)
+  if (searchDebounce) clearTimeout(searchDebounce)
 })
 </script>
 
@@ -926,9 +1073,106 @@ onUnmounted(() => {
 }
 
 /* ── Left floating panel ──────────────────────────────────────────────── */
-.od-panel {
+.od-search-wrapper {
   position: absolute;
   top: 1rem;
+  left: 1rem;
+  width: 340px;
+  z-index: 20;
+}
+
+.od-search-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+
+.od-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font-size: 0.82rem;
+  padding: 0.45rem 0.6rem;
+  font-family: inherit;
+}
+.od-search-input::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.7;
+}
+
+.od-search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.od-search-btn:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
+}
+
+.od-search-clear {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.7;
+}
+.od-search-clear:hover {
+  opacity: 1;
+  color: hsl(var(--foreground));
+  background: hsl(var(--accent));
+}
+
+.od-suggestions {
+  margin-top: 6px;
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+
+.od-suggestion {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.78rem;
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  border-bottom: 1px solid hsl(var(--border));
+  transition: background 0.12s;
+}
+.od-suggestion:last-child { border-bottom: none; }
+.od-suggestion:hover { background: hsl(var(--accent) / 0.5); }
+.od-suggestion svg { color: hsl(var(--muted-foreground)); margin-top: 2px; }
+
+.od-suggestion-name {
+  flex: 1;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.od-panel {
+  position: absolute;
+  top: calc(1rem + 48px + 0.75rem);
   left: 1rem;
   bottom: 1rem;
   width: 340px;
@@ -1371,27 +1615,48 @@ onUnmounted(() => {
 
 /* ── Result messages ─────────────────────────────────────────────────────── */
 .od-msg {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif;
   border-radius: 6px;
-  padding: 0.55rem 0.7rem;
+  padding: 0.6rem 0.75rem;
   line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
-.od-msg-info    { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.od-msg-info    { background: hsl(var(--muted) / 0.6); color: hsl(var(--muted-foreground)); border: 1px solid hsl(var(--border)); }
 .od-msg-warn    { background: rgba(245,158,11,0.08); color: #b45309; border: 1px solid rgba(245,158,11,0.3); }
-.od-msg-success { background: rgba(22,163,74,0.08);  color: #15803d; border: 1px solid rgba(22,163,74,0.3); }
+.od-msg-success { background: hsl(var(--muted) / 0.6); color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); }
 .od-msg-error   { background: rgba(220,38,38,0.08);  color: #dc2626; border: 1px solid rgba(220,38,38,0.3); }
 
-.od-result-file {
-  font-family: monospace;
-  font-size: 0.68rem;
-  word-break: break-all;
-  opacity: 0.8;
+.od-result-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  font-family: inherit;
 }
 
-.od-result-meta {
-  opacity: 0.65;
-  font-size: 0.7rem;
+.od-result-secondary {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.68rem;
+}
+
+.od-result-file-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.od-result-file {
+  word-break: break-all;
+  font-family: inherit;
+}
+
+.od-result-size {
+  font-family: inherit;
 }
 
 /* ── Spinner ─────────────────────────────────────────────────────────────── */

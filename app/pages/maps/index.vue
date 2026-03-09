@@ -1,38 +1,39 @@
 <template>
-  <main class="insights-page">
+  <main class="maps-page">
 
     <!-- Hero -->
-    <section class="insights-hero">
+    <section class="maps-hero">
       <div class="container">
-        <p class="insights-eyebrow">Heenco</p>
-        <h1 class="insights-heading">Insights</h1>
-        <p class="insights-subheading">
-          Short reads on the spatial tools we build and why we build them.
+        <p class="maps-eyebrow">Interactive</p>
+        <h1 class="maps-heading">Maps</h1>
+        <p class="maps-subheading">
+          Interactive spatial maps for exploring population, amenities, and service coverage.
         </p>
       </div>
     </section>
 
     <!-- Grid -->
-    <section class="insights-grid-section">
+    <section class="maps-grid-section">
       <div class="container">
-        <div class="insights-grid">
+        <div class="maps-grid">
           <NuxtLink
-            v-for="post in posts"
-            :key="post.slug"
-            :to="`/blog/${post.slug}`"
-            class="insight-card"
+            v-for="map in maps"
+            :key="map.slug"
+            :to="map.route"
+            class="map-card"
           >
-            <div class="insight-card__body">
-              <p class="insight-card__category">{{ post.category }}</p>
-              <h2 class="insight-card__title">{{ post.title }}</h2>
-              <p class="insight-card__excerpt">{{ post.excerpt }}</p>
+            <div class="map-card__icon-wrap">
+              <span class="map-card__icon" v-html="map.icon" />
             </div>
 
-            <div class="insight-card__footer">
-              <span class="insight-card__date">{{ post.date }}</span>
-              <span class="insight-card__dot">·</span>
-              <span class="insight-card__read-time">{{ post.readTime }}</span>
-              <span class="insight-card__arrow">
+            <div class="map-card__body">
+              <h2 class="map-card__name">{{ map.name }}</h2>
+              <p class="map-card__desc">{{ map.description }}</p>
+            </div>
+
+            <div class="map-card__footer">
+              <span v-for="tag in map.tags" :key="tag" class="map-card__tag">{{ tag }}</span>
+              <span class="map-card__arrow">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M5 12h14M12 5l7 7-7 7"/>
                 </svg>
@@ -47,42 +48,36 @@
 </template>
 
 <script setup>
-const posts = [
+const maps = [
   {
-    slug: 'overture-downloader',
-    title: 'Downloading Overture Maps Data Without the Headache',
-    excerpt: 'Running DuckDB queries against cloud-hosted Parquet files is powerful — but it shouldn\'t require a data engineering background just to grab a city\'s worth of POIs.',
-    category: 'Tool',
-    date: 'March 9, 2026',
-    readTime: '3 min read',
-  },
-  {
-    slug: 'osm-downloader',
-    title: 'Getting OpenStreetMap Data Into a Format That Actually Works',
-    excerpt: 'Overpass Turbo is great for quick lookups. But when you need clean, analysis-ready data in Parquet, you\'re usually left stitching scripts together.',
-    category: 'Tool',
-    date: 'March 9, 2026',
-    readTime: '3 min read',
-  },
-  {
-    slug: 'esri-rest-downloader',
-    title: 'Accessing ArcGIS Data Without an ArcGIS Licence',
-    excerpt: 'Thousands of government datasets sit behind ArcGIS REST endpoints. Getting data out without the right software has always meant wrestling with APIs by hand.',
-    category: 'Tool',
-    date: 'March 9, 2026',
-    readTime: '3 min read',
+    slug: 'population-pois',
+    route: '/maps/population-pois',
+    name: 'Population & POIs',
+    description: 'Explore population density and points of interest across Australia, with fitness facility gap analysis.',
+    tags: ['Population', 'POIs', 'Australia'],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <circle cx="12" cy="12" r="6"/>
+      <circle cx="12" cy="12" r="2"/>
+    </svg>`,
   },
 ]
 </script>
 
 <style scoped>
-.insights-page {
+.maps-page {
   font-family: var(--font-family);
   min-height: 100vh;
 }
 
+/* ── Accent ────────────────────────────────────────────────── */
+:root {
+  --accent: #10b981;
+  --accent-rgb: 16, 185, 129;
+}
+
 /* ── Hero ──────────────────────────────────────────────────── */
-.insights-hero {
+.maps-hero {
   padding: 6rem 2rem 4rem;
   text-align: center;
   background:
@@ -98,7 +93,7 @@ const posts = [
   padding: 0 2rem;
 }
 
-.insights-eyebrow {
+.maps-eyebrow {
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -107,7 +102,7 @@ const posts = [
   margin-bottom: 0.75rem;
 }
 
-.insights-heading {
+.maps-heading {
   font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 700;
   color: #111827;
@@ -115,27 +110,27 @@ const posts = [
   margin: 0 0 1rem;
 }
 
-.insights-subheading {
+.maps-subheading {
   font-size: 1.05rem;
   color: #6b7280;
-  max-width: 480px;
+  max-width: 520px;
   margin: 0 auto;
   line-height: 1.65;
 }
 
 /* ── Grid ──────────────────────────────────────────────────── */
-.insights-grid-section {
+.maps-grid-section {
   padding: 3rem 2rem 6rem;
 }
 
-.insights-grid {
+.maps-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1.25rem;
 }
 
 /* ── Card ──────────────────────────────────────────────────── */
-.insight-card {
+.map-card {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -150,54 +145,62 @@ const posts = [
   overflow: hidden;
 }
 
-.insight-card::before {
+.map-card::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0) 60%);
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.05) 0%, rgba(var(--accent-rgb), 0) 60%);
   opacity: 0;
   transition: opacity 0.3s ease;
   border-radius: inherit;
 }
 
-.insight-card:hover {
+.map-card:hover {
   background: #ffffff;
-  border-color: #10b981;
-  box-shadow: 0 4px 24px rgba(16, 185, 129, 0.12), 0 1px 4px rgba(0, 0, 0, 0.04);
+  border-color: var(--accent);
+  box-shadow: 0 4px 24px rgba(var(--accent-rgb), 0.12), 0 1px 4px rgba(0,0,0,0.04);
   transform: translateY(-2px);
 }
 
-.insight-card:hover::before {
+.map-card:hover::before {
   opacity: 1;
 }
 
-/* Body */
-.insight-card__body {
-  flex: 1;
+/* Icon */
+.map-card__icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+  flex-shrink: 0;
 }
 
-.insight-card__category {
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #10b981;
-  margin: 0;
+.map-card:hover .map-card__icon-wrap {
+  background: rgba(var(--accent-rgb), 0.08);
+  border-color: rgba(var(--accent-rgb), 0.2);
+  color: var(--accent);
 }
 
-.insight-card__title {
+/* Body */
+.map-card__body {
+  flex: 1;
+}
+
+.map-card__name {
   font-size: 1rem;
   font-weight: 600;
   color: #111827;
-  margin: 0;
+  margin: 0 0 0.4rem;
   letter-spacing: -0.01em;
-  line-height: 1.4;
 }
 
-.insight-card__excerpt {
+.map-card__desc {
   font-size: 0.875rem;
   color: #6b7280;
   line-height: 1.6;
@@ -205,24 +208,32 @@ const posts = [
 }
 
 /* Footer */
-.insight-card__footer {
+.map-card__footer {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.78rem;
-  color: #9ca3af;
+  flex-wrap: wrap;
 }
 
-.insight-card__date,
-.insight-card__read-time {
+.map-card__tag {
+  font-size: 0.7rem;
   font-weight: 500;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  transition: color 0.25s ease, background 0.25s ease, border-color 0.25s ease;
 }
 
-.insight-card__dot {
-  color: #d1d5db;
+.map-card:hover .map-card__tag {
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.06);
+  border-color: rgba(var(--accent-rgb), 0.18);
 }
 
-.insight-card__arrow {
+.map-card__arrow {
   margin-left: auto;
   color: #d1d5db;
   display: flex;
@@ -230,24 +241,24 @@ const posts = [
   transition: color 0.25s ease, transform 0.2s ease;
 }
 
-.insight-card:hover .insight-card__arrow {
-  color: #10b981;
+.map-card:hover .map-card__arrow {
+  color: var(--accent);
   transform: translateX(2px);
 }
 
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .insights-grid {
+  .maps-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (max-width: 580px) {
-  .insights-grid {
+  .maps-grid {
     grid-template-columns: 1fr;
   }
 
-  .insights-hero {
+  .maps-hero {
     padding: 4rem 1.5rem 3rem;
   }
 }

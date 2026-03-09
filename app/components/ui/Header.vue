@@ -9,7 +9,8 @@
       <ul class="nav__links">
         <li><NuxtLink to="/">Home</NuxtLink></li>
         <li><NuxtLink to="/blog">Insights</NuxtLink></li>
-        <li><NuxtLink to="/maps/esri-rest-downloader">ESRI Explorer</NuxtLink></li>
+        <li><NuxtLink to="/tools">Tools</NuxtLink></li>
+        <li><NuxtLink to="/maps">Maps</NuxtLink></li>
       </ul>
     </nav>
   </header>
@@ -141,7 +142,7 @@ onUnmounted(() => {
   transition: all 0.2s ease;
   position: relative;
   padding-bottom: 0.25rem;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-family);
   letter-spacing: -0.01em;
 }
 

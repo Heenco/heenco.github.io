@@ -124,7 +124,7 @@ import HeencoLogo from '~/components/ui/HeencoLogo.vue'
 }
 
 .hero__subtitle {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-family);
   font-size: clamp(1.1rem, 2.2vw, 1.35rem);
   color: #6b7280;
   max-width: 750px;
@@ -135,7 +135,7 @@ import HeencoLogo from '~/components/ui/HeencoLogo.vue'
 }
 
 .hero__description {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-family);
   font-size: clamp(0.95rem, 1.8vw, 1.1rem);
   color: #9ca3af;
   max-width: 700px;
@@ -183,7 +183,7 @@ import HeencoLogo from '~/components/ui/HeencoLogo.vue'
 }
 
 .spacer-text {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-family);
   font-size: 0.9rem;
   color: #9ca3af;
   font-weight: 500;

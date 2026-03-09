@@ -1,36 +1,53 @@
 <template>
-  <main class="blog-post">
-    <article class="container">
-      <!-- Back Link -->
+  <main class="post-page">
+    <div class="container">
+
+      <!-- Back -->
       <NuxtLink to="/blog" class="back-link">
-        <span class="back-arrow">←</span> Back to Insights
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Insights
       </NuxtLink>
 
-      <!-- Post Header -->
+      <!-- Header -->
       <header class="post-header">
-        <div class="post-header__meta">
-          <span class="badge">{{ post.category }}</span>
-          <span class="post-header__date">{{ post.date }}</span>
-          <span class="separator">•</span>
-          <span class="read-time">{{ post.readTime }}</span>
+        <div class="post-meta">
+          <span class="post-category">{{ post.category }}</span>
+          <span class="post-dot">·</span>
+          <span class="post-date">{{ post.date }}</span>
+          <span class="post-dot">·</span>
+          <span class="post-read-time">{{ post.readTime }}</span>
+          <template v-if="viewCount !== null">
+            <span class="post-dot">·</span>
+            <span class="post-views">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              {{ viewCount.toLocaleString() }} views
+            </span>
+          </template>
         </div>
-        <h1 class="post-header__title">{{ post.title }}</h1>
-        <p class="post-header__excerpt">{{ post.excerpt }}</p>
+        <h1 class="post-title">{{ post.title }}</h1>
+        <p class="post-excerpt">{{ post.excerpt }}</p>
       </header>
 
-      <!-- Post Content -->
-      <div class="post-content">
-        <div v-html="post.content"></div>
-      </div>
+      <!-- Content -->
+      <div class="post-content" v-html="post.content" />
 
-      <!-- Post Footer -->
+      <!-- Footer -->
       <footer class="post-footer">
-        <div class="post-footer__divider"></div>
-        <NuxtLink to="/blog" class="post-footer__back">
-          ← Back to all insights
+        <div class="post-footer__divider" />
+        <NuxtLink to="/blog" class="back-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Back to Insights
         </NuxtLink>
       </footer>
-    </article>
+
+    </div>
   </main>
 </template>
 
@@ -38,330 +55,273 @@
 const route = useRoute()
 const slug = route.params.slug
 
-// Sample blog post data - replace with API/CMS in production
 const posts = {
-  'spatial-data-infrastructure': {
-    title: 'Building Modern Spatial Data Infrastructure for Enterprise Scale',
-    excerpt: 'How leading organizations are transforming their geospatial capabilities by implementing cloud-native spatial data platforms that integrate seamlessly with existing enterprise systems.',
-    category: 'Infrastructure',
-    date: 'March 1, 2026',
-    readTime: '8 min read',
+  'overture-downloader': {
+    title: 'Downloading Overture Maps Data Without the Headache',
+    excerpt: 'Running DuckDB queries against cloud-hosted Parquet files is powerful — but it shouldn\'t require a data engineering background just to grab a city\'s worth of POIs.',
+    category: 'Tool',
+    date: 'March 9, 2026',
+    readTime: '3 min read',
     content: `
-      <p>Modern enterprises are increasingly recognizing the strategic value of spatial data. From asset management to customer analytics, location intelligence has become a critical component of decision-making processes across industries.</p>
+      <p>Overture Maps is one of the most exciting open datasets to emerge in recent years — a global, structured, regularly updated alternative to OpenStreetMap, maintained by a consortium including Microsoft, Meta, and Amazon.</p>
 
-      <h2>The Challenge of Legacy Systems</h2>
-      <p>Many organizations still rely on legacy GIS systems that were designed for desktop use in the 1990s and early 2000s. These systems often struggle with:</p>
+      <p>The data is openly available. The problem is how you get to it.</p>
+
+      <h2>The Existing Options Fall Short</h2>
+
+      <p>The standard approach is to query Overture's cloud-hosted Parquet files using DuckDB or Athena. That works well if you're comfortable writing SQL against remote S3 buckets, know the schema, and have the right environment set up. For most people — planners, analysts, small teams — that's a significant barrier.</p>
+
+      <p>The official <code>overturemaps</code> CLI tool helps, but it requires Python, a configured environment, and familiarity with the category taxonomy. There's no visual feedback, no map preview, and output options are limited.</p>
+
+      <h2>What We Built</h2>
+
+      <p>The <strong>Overture Downloader</strong> is a browser-based tool that lets you draw a bounding box on a map, pick a category, and download the result as GeoParquet — no setup required.</p>
+
       <ul>
-        <li>Limited scalability for enterprise-wide deployment</li>
-        <li>Poor integration with modern cloud infrastructure</li>
-        <li>Inflexible data models that don't align with business needs</li>
-        <li>High licensing costs and vendor lock-in</li>
+        <li>Visual bounding box selection on an interactive map</li>
+        <li>Browse the full Overture category taxonomy</li>
+        <li>Set the release version you want to query</li>
+        <li>Download directly to GeoParquet, ready for QGIS, GeoPandas, or DuckDB</li>
       </ul>
 
-      <h2>Cloud-Native Spatial Architecture</h2>
-      <p>The shift to cloud-native architectures offers a pathway to modernize spatial data infrastructure. Key components include:</p>
-      
-      <h3>1. Distributed Data Storage</h3>
-      <p>Modern spatial databases like PostGIS, combined with cloud storage solutions, provide scalable, cost-effective data management. Organizations can store vast quantities of spatial data while maintaining query performance through proper indexing and partitioning strategies.</p>
+      <p>It handles the DuckDB query, schema mapping, and file packaging on the server side. You just get the file.</p>
 
-      <h3>2. Microservices Architecture</h3>
-      <p>Breaking down monolithic GIS applications into microservices enables better scalability and maintainability. Each service can be independently deployed, scaled, and updated without affecting the entire system.</p>
-
-      <h3>3. API-First Design</h3>
-      <p>RESTful and GraphQL APIs make spatial data accessible to any application, from mobile apps to business intelligence dashboards. This democratizes access to location intelligence across the organization.</p>
-
-      <h2>Integration with Enterprise Systems</h2>
-      <p>The real value of spatial infrastructure emerges when it's integrated with existing enterprise systems:</p>
-      <ul>
-        <li>ERP systems for asset lifecycle management</li>
-        <li>CRM platforms for territory management and customer analytics</li>
-        <li>Business intelligence tools for spatial analysis and visualization</li>
-        <li>IoT platforms for real-time location tracking</li>
-      </ul>
-
-      <h2>Implementation Roadmap</h2>
-      <p>Successfully modernizing spatial data infrastructure requires a phased approach:</p>
-      <ol>
-        <li><strong>Assessment</strong> - Evaluate current capabilities and identify gaps</li>
-        <li><strong>Architecture Design</strong> - Define target state and migration path</li>
-        <li><strong>Pilot Implementation</strong> - Start with a focused use case</li>
-        <li><strong>Iterative Expansion</strong> - Gradually migrate additional workflows</li>
-        <li><strong>Optimization</strong> - Continuously refine performance and capabilities</li>
-      </ol>
-
-      <h2>Looking Forward</h2>
-      <p>Organizations that invest in modern spatial data infrastructure position themselves to leverage emerging technologies like AI-powered spatial analytics, real-time processing, and advanced visualization capabilities. The key is to build flexible, scalable foundations that can evolve with changing business needs and technological capabilities.</p>
-    `
+      <p><a href="/tools/overture-downloader">Try the Overture Downloader →</a></p>
+    `,
   },
-  'geospatial-analytics-trends': {
-    title: 'Emerging Trends in Geospatial Analytics for 2026',
-    excerpt: 'Exploring the latest developments in spatial analytics, from AI-powered location intelligence to real-time processing capabilities.',
-    category: 'Analytics',
-    date: 'February 28, 2026',
-    readTime: '6 min read',
-    content: `
-      <p>The geospatial analytics landscape is evolving rapidly, driven by advances in artificial intelligence, cloud computing, and data processing technologies. Here are the key trends shaping the industry in 2026.</p>
 
-      <h2>AI-Powered Spatial Intelligence</h2>
-      <p>Machine learning models are now being routinely applied to spatial data for pattern recognition, prediction, and automated decision-making. Applications include:</p>
+  'osm-downloader': {
+    title: 'Getting OpenStreetMap Data Into a Format That Actually Works',
+    excerpt: 'Overpass Turbo is great for quick lookups. But when you need clean, analysis-ready data in Parquet, you\'re usually left stitching scripts together.',
+    category: 'Tool',
+    date: 'March 9, 2026',
+    readTime: '3 min read',
+    content: `
+      <p>OpenStreetMap is the world's most comprehensive open geographic dataset. It covers roads, buildings, parks, cafés, hospitals, and almost everything in between. Getting that data into a useful format, however, has always required more effort than it should.</p>
+
+      <h2>The Gap in Existing Tools</h2>
+
+      <p>Overpass Turbo is the go-to for ad hoc queries. It's excellent for exploration, but exports to GeoJSON — which becomes unwieldy at scale — and offers no Parquet output. Tools like <code>osmium</code> and <code>osm2pgsql</code> are powerful but CLI-only, requiring installation and configuration.</p>
+
+      <p>None of them let you point at a map, pick a tag, and walk away with a clean file.</p>
+
+      <h2>What We Built</h2>
+
+      <p>The <strong>OSM Downloader</strong> gives you a map-based interface to extract OpenStreetMap features by tag and bounding box, with output straight to Parquet.</p>
+
       <ul>
-        <li>Predictive maintenance for infrastructure assets</li>
-        <li>Automated feature extraction from satellite imagery</li>
-        <li>Dynamic routing and logistics optimization</li>
-        <li>Risk modeling for insurance and financial services</li>
+        <li>Draw or enter your bounding box directly on the map</li>
+        <li>Filter by element type — nodes, ways, or relations</li>
+        <li>Choose from common tag keys and values (amenity, leisure, landuse, and more)</li>
+        <li>Export to Parquet with geometry, tags, and OSM ID preserved</li>
       </ul>
 
-      <h2>Real-Time Processing at Scale</h2>
-      <p>Organizations are moving beyond batch processing to real-time spatial analytics. This enables use cases like live traffic management, emergency response coordination, and dynamic resource allocation.</p>
+      <p>Way geometries are represented as centroid points, making the output immediately usable in spatial analysis without additional processing.</p>
 
-      <h2>The Rise of Spatial Data Science</h2>
-      <p>Data science teams are increasingly incorporating spatial analysis into their workflows, using tools like Python's GeoPandas and Apache Sedona for distributed spatial computing.</p>
-
-      <p>These trends are democratizing access to location intelligence and enabling organizations to extract more value from their spatial data assets.</p>
-    `
+      <p><a href="/tools/osm-downloader">Try the OSM Downloader →</a></p>
+    `,
   },
-  'asset-management-gis': {
-    title: 'Transforming Asset Management with Location Intelligence',
-    excerpt: 'Discover how spatial data platforms are revolutionizing infrastructure asset management and maintenance planning.',
-    category: 'Case Study',
-    date: 'February 20, 2026',
-    readTime: '10 min read',
-    content: `
-      <p>Infrastructure asset management is being transformed by location intelligence and spatial data platforms. Organizations managing extensive physical assets - from utilities to transportation networks - are discovering new efficiencies and insights.</p>
 
-      <h2>The Asset Management Challenge</h2>
-      <p>Traditional asset management systems often lack spatial context, making it difficult to:</p>
+  'esri-rest-downloader': {
+    title: 'Accessing ArcGIS Data Without an ArcGIS Licence',
+    excerpt: 'Thousands of government datasets sit behind ArcGIS REST endpoints. Getting data out without the right software has always meant wrestling with APIs by hand.',
+    category: 'Tool',
+    date: 'March 9, 2026',
+    readTime: '3 min read',
+    content: `
+      <p>A significant portion of publicly available geospatial data — from local councils, state agencies, and national governments — is published through ArcGIS REST services. The data is technically open. Accessing it cleanly is not always straightforward.</p>
+
+      <h2>The Problem With the Current Workflow</h2>
+
+      <p>Without an ArcGIS licence, your options are limited. You can manually call the REST API endpoint by endpoint, paginate through features in batches of 1,000, and stitch results together — doable, but tedious. Tools like Postman or <code>curl</code> work, but they don't understand service trees, layer hierarchies, or pagination. QGIS can connect to ArcGIS services, but export is clunky and format support is narrow.</p>
+
+      <p>There's no clean, free, browser-based way to browse an ArcGIS service, pick a layer, and download it.</p>
+
+      <h2>What We Built</h2>
+
+      <p>The <strong>ESRI REST Downloader</strong> lets you paste any ArcGIS REST service URL, explore the full service tree, inspect layer metadata, and export any layer to GeoParquet — all in the browser.</p>
+
       <ul>
-        <li>Visualize asset relationships and dependencies</li>
-        <li>Optimize maintenance routing and scheduling</li>
-        <li>Analyze spatial patterns in asset performance</li>
-        <li>Plan capital projects in geographic context</li>
+        <li>Paste a service URL and auto-discover all folders, services, and layers</li>
+        <li>Browse service metadata and field schemas inline</li>
+        <li>Filter and select the layers you need</li>
+        <li>Export to GeoParquet with automatic pagination handled server-side</li>
       </ul>
 
-      <h2>Spatial Data Platform Benefits</h2>
-      <p>Modern spatial platforms provide comprehensive solutions that integrate asset data with location intelligence, enabling better decision-making across the asset lifecycle.</p>
+      <p>It detects CORS restrictions upfront and surfaces them clearly, so you're not left debugging silent failures.</p>
 
-      <p>Organizations implementing these solutions typically see significant improvements in operational efficiency, cost reduction, and service reliability.</p>
-    `
-  }
+      <p><a href="/tools/esri-rest-downloader">Try the ESRI REST Downloader →</a></p>
+    `,
+  },
 }
 
 const post = posts[slug] || {
   title: 'Post Not Found',
-  excerpt: 'The requested blog post could not be found.',
-  category: 'Error',
+  excerpt: '',
+  category: '',
   date: '',
   readTime: '',
-  content: '<p>The requested blog post could not be found. Please return to the <a href="/blog">blog index</a>.</p>'
+  content: '<p>This post doesn\'t exist. <a href="/blog">Back to Insights</a>.</p>',
 }
 
+const { viewCount } = usePageViews()
+
 useSeoMeta({
-  title: `${post.title} - Heenco`,
-  description: post.excerpt
+  title: `${post.title} — Heenco`,
+  description: post.excerpt,
 })
 </script>
 
 <style scoped>
-.blog-post {
+.post-page {
+  font-family: var(--font-family);
   min-height: 100vh;
   padding: 3rem 0 6rem;
 }
 
 .container {
-  max-width: 800px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 0 2rem;
 }
 
-/* Back Link */
+/* ── Back link ─────────────────────────────────────────────── */
 .back-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  color: #64748b;
-  text-decoration: none;
-  font-size: 0.95rem;
+  gap: 0.4rem;
+  font-size: 0.875rem;
   font-weight: 500;
+  color: #9ca3af;
+  text-decoration: none;
   margin-bottom: 2.5rem;
   transition: color 0.2s ease;
 }
 
 .back-link:hover {
-  color: #1f2937;
+  color: #10b981;
 }
 
-.back-arrow {
-  font-size: 1.2rem;
-}
-
-/* Post Header */
+/* ── Header ────────────────────────────────────────────────── */
 .post-header {
   margin-bottom: 3rem;
   padding-bottom: 2rem;
-  border-bottom: 2px solid rgba(31, 41, 55, 0.08);
+  border-bottom: 1px solid #f3f4f6;
 }
 
-.post-header__meta {
+.post-meta {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 1.5rem;
-}
-
-.separator {
-  color: #cbd5e1;
-}
-
-.post-header__date {
-  font-size: 0.9rem;
-  color: #64748b;
+  gap: 0.4rem;
+  font-size: 0.78rem;
   font-weight: 500;
+  margin-bottom: 1rem;
 }
 
-.post-header__title {
-  font-family: 'Inter', sans-serif;
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 800;
-  line-height: 1.2;
-  margin-bottom: 1.25rem;
-  color: #111827;
-  letter-spacing: -0.02em;
+.post-category {
+  color: #10b981;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.post-header__excerpt {
-  font-size: 1.2rem;
-  color: #475569;
-  line-height: 1.7;
-  font-weight: 400;
+.post-dot {
+  color: #d1d5db;
 }
 
-/* Post Content */
-.post-content {
-  font-size: 1.05rem;
-  line-height: 1.8;
-  color: #334155;
+.post-date,
+.post-read-time,
+.post-views {
+  color: #9ca3af;
 }
 
-.post-content :deep(h2) {
-  font-family: 'Inter', sans-serif;
-  font-size: 1.75rem;
+.post-views {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.post-title {
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
   font-weight: 700;
   color: #111827;
-  margin-top: 2.5rem;
-  margin-bottom: 1rem;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  margin: 0 0 1rem;
 }
 
-.post-content :deep(h3) {
-  font-size: 1.4rem;
-  font-weight: 600;
-  color: #1e293b;
-  margin-top: 2rem;
-  margin-bottom: 0.875rem;
-  line-height: 1.4;
+.post-excerpt {
+  font-size: 1.05rem;
+  color: #6b7280;
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* ── Content ───────────────────────────────────────────────── */
+.post-content {
+  font-size: 0.975rem;
+  color: #374151;
+  line-height: 1.75;
 }
 
 .post-content :deep(p) {
-  margin-bottom: 1.5rem;
+  margin: 0 0 1.25rem;
+}
+
+.post-content :deep(h2) {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.02em;
+  margin: 2.5rem 0 0.75rem;
 }
 
 .post-content :deep(ul),
 .post-content :deep(ol) {
-  margin-bottom: 1.5rem;
-  padding-left: 1.75rem;
+  padding-left: 1.5rem;
+  margin: 0 0 1.25rem;
 }
 
 .post-content :deep(li) {
-  margin-bottom: 0.625rem;
-  line-height: 1.7;
+  margin-bottom: 0.4rem;
+  color: #4b5563;
 }
 
-.post-content :deep(strong) {
-  font-weight: 600;
-  color: #1e293b;
+.post-content :deep(code) {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  color: #374151;
 }
 
 .post-content :deep(a) {
-  color: #374151;
+  color: #10b981;
   text-decoration: none;
-  border-bottom: 1px solid rgba(55, 65, 81, 0.3);
+  font-weight: 500;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.25);
   transition: border-color 0.2s ease;
 }
 
 .post-content :deep(a:hover) {
-  border-bottom-color: #1f2937;
+  border-color: #10b981;
 }
 
-/* Badge */
-.badge {
-  display: inline-block;
-  padding: 0.4rem 1rem;
-  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
-  color: white;
-  border-radius: 6px;
-  font-size: 0.8rem;
+.post-content :deep(strong) {
+  color: #111827;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 
-.read-time {
-  font-size: 0.9rem;
-  color: #94a3b8;
-  font-weight: 500;
-}
-
-/* Post Footer */
+/* ── Footer ────────────────────────────────────────────────── */
 .post-footer {
   margin-top: 4rem;
-  padding-top: 2rem;
 }
 
 .post-footer__divider {
-  height: 2px;
-  background: linear-gradient(to right, transparent, rgba(31, 41, 55, 0.08), transparent);
+  height: 1px;
+  background: #f3f4f6;
   margin-bottom: 2rem;
-}
-
-.post-footer__back {
-  display: inline-block;
-  color: #374151;
-  text-decoration: none;
-  font-weight: 500;
-  transition: opacity 0.2s ease;
-}
-
-.post-footer__back:hover {
-  opacity: 0.7;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .blog-post {
-    padding: 2rem 0 4rem;
-  }
-
-  .post-header__title {
-    font-size: 1.75rem;
-  }
-
-  .post-header__excerpt {
-    font-size: 1.05rem;
-  }
-
-  .post-content {
-    font-size: 1rem;
-  }
-
-  .post-content :deep(h2) {
-    font-size: 1.5rem;
-    margin-top: 2rem;
-  }
-
-  .post-content :deep(h3) {
-    font-size: 1.25rem;
-  }
 }
 </style>
