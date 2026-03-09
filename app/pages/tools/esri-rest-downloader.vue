@@ -1,18 +1,59 @@
 <template>
   <div class="er-page">
 
-    <!-- ── Left panel ──────────────────────────────────────────────────── -->
-    <aside class="er-panel">
+    <!-- ── FAB (when panel hidden) ────────────────────────────────────── -->
+    <button v-if="!showPanel" class="er-fab" @click="showPanel = true" title="Open ESRI REST Downloader">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </button>
+
+    <!-- ── Location search (above left panel) ─────────────────── -->
+    <div v-if="showPanel" class="er-geo-search-wrapper" ref="geoSearchWrapperRef">
+      <div class="er-geo-search-container">
+        <input
+          v-model="geoSearchQuery"
+          type="text"
+          placeholder="Search location…"
+          class="er-geo-search-input"
+          @input="fetchGeoSuggestions"
+          @keyup.enter="searchGeoLocation"
+          @focus="showGeoSuggestions = true"
+        />
+        <button v-if="geoSearchQuery" class="er-geo-search-btn er-geo-search-clear" @click="clearGeoSearch" title="Clear">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <button class="er-geo-search-btn" @click="searchGeoLocation" title="Search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+      </div>
+      <div v-if="showGeoSuggestions && geoSuggestions.length > 0" class="er-geo-suggestions">
+        <div
+          v-for="s in geoSuggestions"
+          :key="s.id"
+          class="er-geo-suggestion"
+          @click="selectGeoSuggestion(s)"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span class="er-geo-suggestion-name">{{ s.place_name }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Left panel ────────────────────────────────────────────────────── -->
+    <transition name="er-slide-left">
+      <aside v-if="showPanel" class="er-panel">
+        <div class="er-panel-header">
+          <div class="er-header">
+            <h1 class="er-title">ESRI REST Downloader</h1>
+            <p class="er-subtitle">Explore ArcGIS REST services &amp; export to GeoParquet</p>
+          </div>
+          <button class="er-chevron-btn" @click="showPanel = false" title="Collapse">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+        </div>
       <div class="er-panel-inner">
 
-        <!-- Header -->
-        <div class="er-header">
-          <h1 class="er-title">ESRI REST Downloader</h1>
-          <p class="er-subtitle">Explore ArcGIS REST services &amp; export to GeoParquet</p>
-        </div>
-
-        <!-- URL Input -->
-        <section class="er-section">
+        <!-- URL Input — only shown when no endpoint is loaded -->
+        <section v-if="tree.length === 0" class="er-section">
           <label class="er-label">Service URL</label>
           <div class="er-url-row">
             <input
@@ -41,10 +82,13 @@
             <span v-if="exploreStatus === 'loading'" class="er-spinner">◌</span>
             {{ exploreStatus === 'loading' ? `Fetching… ${fetchedCount} / ${totalCount}` : 'Explore' }}
           </UButton>
-          <button v-if="tree.length > 0" class="er-back-library" @click="clearExplore">
-            ← Browse library
-          </button>
         </section>
+
+        <!-- Active endpoint bar — shown once a service is loaded -->
+        <div v-if="tree.length > 0" class="er-active-bar">
+          <button class="er-back-library" @click="clearExplore">← Browse library</button>
+          <span class="er-active-bar-url">{{ serviceUrl }}</span>
+        </div>
 
         <!-- Search / Filter -->
         <section v-if="tree.length > 0" class="er-section er-section--flush">
@@ -233,7 +277,8 @@
         </section>
 
       </div>
-    </aside>
+      </aside>
+    </transition>
 
     <!-- ── Detail panel ────────────────────────────────────────────────── -->
     <transition name="er-slide">
@@ -364,13 +409,89 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import UButton from '~/components/ui/Button.vue'
 import { ESRI_LIBRARY } from '~/config/esriLibrary'
 
-useHead({
-  link: [
-    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-    { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
-    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap' },
-  ]
-})
+const config = useRuntimeConfig()
+
+// ── Panel visibility ──────────────────────────────────────────────────────
+const showPanel = ref(true)
+
+// ── Geocoding search ──────────────────────────────────────────────────────
+const geoSearchWrapperRef = ref<HTMLElement | null>(null)
+const geoSearchQuery      = ref('')
+const geoSuggestions      = ref<any[]>([])
+const showGeoSuggestions  = ref(false)
+let   geoSearchDebounce: ReturnType<typeof setTimeout> | null = null
+
+function fetchGeoSuggestions() {
+  if (geoSearchDebounce) clearTimeout(geoSearchDebounce)
+  if (!geoSearchQuery.value.trim()) { geoSuggestions.value = []; showGeoSuggestions.value = false; return }
+  geoSearchDebounce = setTimeout(async () => {
+    const token = (config.public as any).mapboxToken
+    if (!token) return
+    try {
+      const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(geoSearchQuery.value)}.json?access_token=${token}&limit=5&autocomplete=true`)
+      const data = await res.json()
+      geoSuggestions.value = data.features ?? []
+      showGeoSuggestions.value = true
+    } catch { geoSuggestions.value = [] }
+  }, 300)
+}
+
+function placeGeoMarker(lng: number, lat: number) {
+  if (!map) return
+  const geojson = { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] } }] }
+  if (map.getSource('er-geo-marker')) {
+    map.getSource('er-geo-marker').setData(geojson)
+  } else {
+    map.addSource('er-geo-marker', { type: 'geojson', data: geojson })
+    map.addLayer({ id: 'er-geo-marker-halo', type: 'circle', source: 'er-geo-marker', paint: { 'circle-radius': 11, 'circle-color': '#ffffff', 'circle-opacity': 0.9 } })
+    map.addLayer({ id: 'er-geo-marker-dot',  type: 'circle', source: 'er-geo-marker', paint: { 'circle-radius': 5,  'circle-color': '#f97316', 'circle-opacity': 1 } })
+  }
+}
+
+function clearGeoMarker() {
+  if (!map) return
+  if (map.getLayer('er-geo-marker-dot'))  map.removeLayer('er-geo-marker-dot')
+  if (map.getLayer('er-geo-marker-halo')) map.removeLayer('er-geo-marker-halo')
+  if (map.getSource('er-geo-marker'))     map.removeSource('er-geo-marker')
+}
+
+function clearGeoSearch() {
+  geoSearchQuery.value = ''
+  geoSuggestions.value = []
+  showGeoSuggestions.value = false
+  clearGeoMarker()
+}
+
+function selectGeoSuggestion(s: any) {
+  geoSearchQuery.value = s.place_name
+  geoSuggestions.value = []
+  showGeoSuggestions.value = false
+  const [lng, lat] = s.center
+  placeGeoMarker(lng, lat)
+  map?.flyTo({ center: [lng, lat], zoom: 10, essential: true })
+}
+
+async function searchGeoLocation() {
+  if (!geoSearchQuery.value.trim()) return
+  showGeoSuggestions.value = false
+  const token = (config.public as any).mapboxToken
+  if (!token) return
+  try {
+    const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(geoSearchQuery.value)}.json?access_token=${token}&limit=1`)
+    const data = await res.json()
+    if (data.features?.length) {
+      const [lng, lat] = data.features[0].center
+      placeGeoMarker(lng, lat)
+      map?.flyTo({ center: [lng, lat], zoom: 10, essential: true })
+    }
+  } catch {}
+}
+
+function handleGeoClickOutside(e: MouseEvent) {
+  if (geoSearchWrapperRef.value && !geoSearchWrapperRef.value.contains(e.target as Node)) {
+    showGeoSuggestions.value = false
+  }
+}
 
 // ── MapLibre ────────────────────────────────────────────────────────────────
 const MAPLIBRE_CSS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'
@@ -1273,42 +1394,49 @@ onMounted(() => {
   link.rel = 'stylesheet'; link.href = MAPLIBRE_CSS
   document.head.appendChild(link)
   loadScript(MAPLIBRE_JS).then(initMap).catch(console.error)
+  document.addEventListener('click', handleGeoClickOutside)
 })
 
 onUnmounted(() => {
   map?.remove(); map = null
   if (_conn) { _conn.close().catch(() => {}); _conn = null }
   if (_db)   { _db.terminate().catch(() => {}); _db = null }
+  document.removeEventListener('click', handleGeoClickOutside)
 })
 </script>
 
 <style scoped>
 /* ── Layout ──────────────────────────────────────────────────────────────── */
 .er-page {
-  display: flex;
+  position: relative;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
   background: #0a0a12;
-  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif;
 }
 
 .er-panel {
-  width: 380px;
-  flex-shrink: 0;
-  background: hsl(var(--card));
-  border-right: 1px solid hsl(var(--border));
+  position: absolute;
+  top: calc(1rem + 48px + 0.75rem);
+  left: 1rem;
+  bottom: 1rem;
+  width: 360px;
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 10;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);
 }
 
 .er-panel-inner {
   flex: 1;
   overflow-y: auto;
-  padding: 1.25rem;
+  padding: 0 1.25rem 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -1316,8 +1444,8 @@ onUnmounted(() => {
 
 /* ── Map wrap + overlay controls ────────────────────────────────────────── */
 .er-map-wrap {
-  flex: 1;
-  position: relative;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
 }
 
@@ -1350,7 +1478,7 @@ onUnmounted(() => {
 }
 
 .er-map-toggle-label {
-  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif;
   font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -1398,6 +1526,158 @@ onUnmounted(() => {
 .er-panel-inner::-webkit-scrollbar { width: 4px; }
 .er-panel-inner::-webkit-scrollbar-track { background: transparent; }
 .er-panel-inner::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 2px; }
+
+/* ── Panel header ────────────────────────────────────────────────────── */
+.er-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1rem 1rem 0.85rem;
+  border-bottom: 1px solid hsl(var(--border));
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+.er-panel-header .er-header {
+  padding-bottom: 0;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.er-chevron-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: background 0.15s, color 0.15s;
+}
+.er-chevron-btn:hover {
+  background: hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+
+/* ── FAB (panel closed state) ──────────────────────────────────────── */
+.er-fab {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 20;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.er-fab:hover {
+  background: hsl(var(--card));
+  box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+}
+
+/* ── Geo search wrapper (above panel) ────────────────────────────── */
+.er-geo-search-wrapper {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  width: 360px;
+  z-index: 20;
+}
+
+.er-geo-search-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+
+.er-geo-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font-size: 0.82rem;
+  padding: 0.45rem 0.6rem;
+  font-family: inherit;
+}
+.er-geo-search-input::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.7;
+}
+
+.er-geo-search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.er-geo-search-btn:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
+}
+.er-geo-search-clear { opacity: 0.7; }
+.er-geo-search-clear:hover { opacity: 1; }
+
+.er-geo-suggestions {
+  margin-top: 6px;
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+
+.er-geo-suggestion {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.78rem;
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  border-bottom: 1px solid hsl(var(--border));
+  transition: background 0.12s;
+}
+.er-geo-suggestion:last-child { border-bottom: none; }
+.er-geo-suggestion:hover { background: hsl(var(--accent) / 0.5); }
+.er-geo-suggestion svg { color: hsl(var(--muted-foreground)); margin-top: 2px; flex-shrink: 0; }
+
+.er-geo-suggestion-name {
+  flex: 1;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
 .er-header {
@@ -1868,16 +2148,32 @@ onUnmounted(() => {
   max-width: 100%;
 }
 
+.er-active-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.er-active-bar-url {
+  font-size: 0.66rem;
+  color: hsl(var(--muted-foreground));
+  word-break: break-all;
+  line-height: 1.4;
+  opacity: 0.7;
+}
+
 .er-back-library {
   background: none;
   border: none;
   font-size: 0.7rem;
   color: hsl(var(--muted-foreground));
   cursor: pointer;
-  padding: 0.15rem 0;
+  padding: 0;
   text-align: left;
   transition: color 0.1s;
-  width: 100%;
+  width: fit-content;
 }
 .er-back-library:hover { color: hsl(var(--foreground)); }
 
@@ -1925,15 +2221,20 @@ onUnmounted(() => {
 
 /* ── Detail panel ────────────────────────────────────────────────────────── */
 .er-detail-panel {
+  position: absolute;
+  top: 1rem;
+  left: calc(1rem + 360px + 0.75rem);
+  bottom: 1rem;
   width: 320px;
-  flex-shrink: 0;
-  background: hsl(var(--card));
-  border-right: 1px solid hsl(var(--border));
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 9;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);
 }
 
 .er-detail-inner {
@@ -2157,15 +2458,25 @@ onUnmounted(() => {
   border: 1px solid hsl(var(--border));
 }
 
-/* ── Slide transition ─────────────────────────────────────────────────────── */
+/* ── Slide transition (detail panel) ────────────────────────────────────── */
 .er-slide-enter-active,
 .er-slide-leave-active {
-  transition: width 0.22s ease, opacity 0.22s ease;
-  overflow: hidden;
+  transition: transform 0.22s ease, opacity 0.22s ease;
 }
 .er-slide-enter-from,
 .er-slide-leave-to {
-  width: 0 !important;
+  transform: translateX(-12px);
+  opacity: 0;
+}
+
+/* ── Slide-left transition (main panel) ───────────────────────────────── */
+.er-slide-left-enter-active,
+.er-slide-left-leave-active {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.er-slide-left-enter-from,
+.er-slide-left-leave-to {
+  transform: translateX(-16px);
   opacity: 0;
 }
 </style>
