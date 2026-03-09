@@ -67,10 +67,10 @@ onUnmounted(() => {
 .nav__logo {
   display: flex;
   align-items: center;
-  opacity: 0;
-  transform: translateX(-20px);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
+  opacity: 1;
+  transform: translateX(0);
+  transition: none;
+  pointer-events: auto;
 }
 
 .nav__logo--visible {

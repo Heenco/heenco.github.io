@@ -49,9 +49,17 @@
 <script setup>
 const posts = [
   {
+    slug: 'population-dataset',
+    title: 'From a 400 MB GeoPackage to a Web Map in Four Steps',
+    excerpt: 'Kontur\'s population dataset is one of the most useful open spatial datasets available. Here\'s exactly how we downloaded it, converted it to PMTiles, and put it on a map anyone can explore.',
+    category: 'Dataset',
+    date: 'March 9, 2026',
+    readTime: '4 min read',
+  },
+  {
     slug: 'overture-downloader',
     title: 'Downloading Overture Maps Data Without the Headache',
-    excerpt: 'Running DuckDB queries against cloud-hosted Parquet files is powerful — but it shouldn\'t require a data engineering background just to grab a city\'s worth of POIs.',
+    excerpt: 'Running DuckDB queries against cloud-hosted Parquet files is powerful, but it shouldn\'t require a data engineering background just to grab a city\'s worth of POIs.',
     category: 'Tool',
     date: 'March 9, 2026',
     readTime: '3 min read',
