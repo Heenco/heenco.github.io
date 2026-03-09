@@ -13,7 +13,11 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
-const isMapPage = computed(() => route.path.startsWith('/maps') || route.path.startsWith('/tools'))
+const isMapPage = computed(() => {
+  const p = route.path
+  // Hide header on individual tool/map pages, but keep it on the index pages
+  return (p.startsWith('/maps/') || p.startsWith('/tools/'))
+})
 </script>
 
 <style scoped>

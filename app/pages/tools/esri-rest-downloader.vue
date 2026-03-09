@@ -157,7 +157,18 @@
             <div class="er-active-name">{{ activeLayer.layerName }}</div>
             <div class="er-active-meta">{{ activeLayer.svcName }} · {{ activeLayer.svcType }}</div>
             <div v-if="layerFeatureCount !== null" class="er-active-count">
-              {{ layerFeatureCount.toLocaleString() }} features in current map view
+              {{ layerFeatureCount.toLocaleString() }} features loaded
+              <span v-if="layerPaginating" class="er-count-paginating"> · loading more…</span>
+            </div>
+            <div v-else-if="layerPhase" class="er-phase-label">
+              <span class="er-phase-dot" />
+              <span v-if="layerPhase === 'connecting'">Connecting to service…</span>
+              <span v-else-if="layerPhase === 'fetching'">Fetching features…</span>
+              <span v-else-if="layerPhase === 'paginating'">Loading more features…</span>
+            </div>
+            <div v-if="layerSlowWarning" class="er-slow-warning">
+              Taking longer than usual — service may be slow.
+              <a :href="activeLayer.url" target="_blank" rel="noopener" class="er-slow-link">Open endpoint ↗</a>
             </div>
           </div>
 
@@ -369,6 +380,80 @@
       </aside>
     </transition>
 
+    <!-- ── Bug report modal ──────────────────────────────────────────── -->
+    <teleport to="body">
+      <transition name="er-fade">
+        <div v-if="showBugModal" class="er-modal-overlay" @click.self="closeBugModal">
+          <div class="er-modal">
+            <div class="er-modal-header">
+              <h2 class="er-modal-title">Report a Bug</h2>
+              <button class="er-chevron-btn" @click="closeBugModal" title="Close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="er-modal-body">
+              <div class="er-bug-context">
+                <span><strong>Page:</strong> /tools/esri-rest-downloader</span>
+                <span v-if="activeLayer"><strong>Layer:</strong> {{ activeLayer.layerName }}</span>
+                <span v-if="activeLayer"><strong>URL:</strong> {{ activeLayer.url }}</span>
+              </div>
+              <label class="er-label" style="margin-top: 0.75rem; display: block">Description <span style="color: #ef4444">*</span></label>
+              <textarea
+                v-model="bugDescription"
+                class="er-bug-textarea"
+                placeholder="Describe what happened and what you expected…"
+                rows="5"
+              />
+              <label class="er-label" style="margin-top: 0.75rem; display: block">Email <span style="opacity:0.5; text-transform:none; font-weight:400">(optional — for follow-up)</span></label>
+              <input v-model="bugEmail" type="email" class="er-bug-input" placeholder="you@example.com" />
+            </div>
+            <div class="er-modal-footer">
+              <div v-if="bugStatus === 'success'" class="er-msg er-msg-success" style="flex:1; margin:0">✓ Report received — thanks!</div>
+              <div v-else-if="bugStatus === 'error'" class="er-msg er-msg-error" style="flex:1; margin:0">✗ Failed to send. Please try again.</div>
+              <template v-if="bugStatus !== 'success'">
+                <UButton variant="outline" size="sm" @click="closeBugModal">Cancel</UButton>
+                <UButton
+                  variant="primary"
+                  size="sm"
+                  :disabled="!bugDescription.trim() || bugStatus === 'submitting'"
+                  @click="submitBugReport"
+                >
+                  {{ bugStatus === 'submitting' ? 'Sending…' : 'Submit report' }}
+                </UButton>
+              </template>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
+
+    <!-- ── Disclaimer modal ────────────────────────────────────────── -->
+    <teleport to="body">
+      <transition name="er-fade">
+        <div v-if="showDisclaimer" class="er-modal-overlay er-disclaimer-overlay">
+          <div class="er-modal er-disclaimer">
+            <div class="er-modal-header">
+              <h2 class="er-modal-title">ESRI REST Explorer</h2>
+            </div>
+            <div class="er-modal-body er-disclaimer-body">
+              <p class="er-disclaimer-p">This is a <strong>lightweight, browser-only</strong> ESRI REST service explorer and downloader. No data is sent to any server — everything is fetched and processed directly in your browser.</p>
+              <div class="er-disclaimer-warn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;opacity:0.7"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span>Keep total records <strong>below 50,000</strong> per session. Loading very large datasets may cause your browser to slow down or crash. For <strong>large-scale data</strong> downloading or processing, contact us at <a href="mailto:hello@heenco.com.au" class="er-disclaimer-link">hello@heenco.com.au</a>.</span>
+              </div>
+              <div class="er-disclaimer-switch">
+                <USwitch :modelValue="disclaimerDontShow" @update:modelValue="disclaimerDontShow = $event" />
+                <span class="er-disclaimer-switch-label">Don’t show again</span>
+              </div>
+            </div>
+            <div class="er-modal-footer" style="justify-content: flex-end">
+              <UButton variant="primary" size="sm" @click="closeDisclaimer">Got it</UButton>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
+
     <!-- ── Detail panel ────────────────────────────────────────────────── -->
     <transition name="er-slide">
       <aside v-if="detailPanelOpen" class="er-detail-panel">
@@ -478,17 +563,80 @@
     <!-- ── Map ─────────────────────────────────────────────────────────── -->
     <div class="er-map-wrap">
       <div id="er-map" class="er-map" />
-      <!-- Map overlay controls -->
-      <div v-if="mapLayerKey" class="er-map-controls">
-        <label class="er-map-toggle">
-          <span class="er-map-toggle-track" :class="{ 'er-map-toggle-track--on': autoUpdate }">
-            <input type="checkbox" v-model="autoUpdate" class="er-map-toggle-input" />
-            <span class="er-map-toggle-thumb" />
+      <!-- Map progress bar -->
+      <div v-if="layerStatus === 'loading' || layerPaginating" class="er-map-progress"><div class="er-map-progress-bar" /></div>
+      <!-- Map overlay: loaded feature count -->
+      <div v-if="mapLayerKey && layerFeatureCount !== null" class="er-map-controls">
+        <div class="er-map-loaded-pill">
+          <span>{{ layerFeatureCount.toLocaleString() }} features loaded</span>
+          <span v-if="layerPaginating" class="er-count-paginating"> · loading…</span>
+        </div>
+      </div>
+
+      <!-- ── Map HUD: views + bug report ──────────────────────────────── -->
+      <div class="er-hud">
+        <div class="er-hud-popup">
+          <span class="er-hud-views">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            {{ (viewCount ?? 0).toLocaleString() }} views
           </span>
-          <span class="er-map-toggle-label">Update as map moves</span>
-        </label>
+          <button class="er-hud-bug" @click="showBugModal = true">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h8"/><path d="M9 3H7a3 3 0 0 0-3 3v2a5 5 0 0 0 5 5h4a5 5 0 0 0 5-5V6a3 3 0 0 0-3-3h-2"/><path d="M2 13h4"/><path d="M18 13h4"/><path d="M12 19v3"/><path d="M8 19a4 4 0 0 0 8 0"/></svg>
+            Report a bug
+          </button>
+        </div>
+        <button class="er-hud-eye" title="Views & feedback">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
       </div>
     </div>
+
+    <!-- ── Layers FAB (right, when panel collapsed) ──────────────────────────── -->
+    <button
+      v-if="pinnedLayers.length > 0 && !showLayers"
+      class="er-fab er-fab--right"
+      @click="showLayers = true"
+      title="Show layers"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      <span class="er-fab-badge">{{ pinnedLayers.length }}</span>
+    </button>
+
+    <!-- ── Layers panel (right side) ────────────────────────────────────────── -->
+    <transition name="er-slide-right">
+      <aside v-if="pinnedLayers.length > 0 && showLayers" class="er-layers-panel">
+        <div class="er-layers-header">
+          <span style="font-size:0.75rem;font-weight:600;color:hsl(var(--foreground))">Layers</span>
+          <button class="er-chevron-btn" @click="showLayers = false" title="Collapse">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="er-layer-list">
+          <div v-for="layer in pinnedLayers" :key="layer.id" class="er-layer-row-wrap">
+            <div class="er-layer-row">
+              <div
+                class="er-layer-swatch"
+                :style="{ color: layer.color }"
+                :title="layer.geomCategory"
+              >
+                <!-- Polygon -->
+                <svg v-if="layer.geomCategory === 'polygon'" width="10" height="10" viewBox="0 0 10 10" fill="currentColor" stroke="none"><rect x="0.5" y="0.5" width="9" height="9" rx="1" fill="currentColor" fill-opacity="0.45"/><rect x="0.5" y="0.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                <!-- Line -->
+                <svg v-else-if="layer.geomCategory === 'line'" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="9" x2="9" y2="1"/></svg>
+                <!-- Point -->
+                <svg v-else width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>
+              </div>
+              <div class="er-layer-info">
+                <span class="er-layer-name">{{ layer.label }}</span>
+                <span class="er-layer-meta">{{ layer.featureCount.toLocaleString() }} features</span>
+              </div>
+              <USwitch :modelValue="layer.visible" @update:modelValue="togglePinnedLayer(layer.id)" />
+              <button class="er-layer-btn er-layer-btn--remove" @click="removePinnedLayer(layer.id)" title="Remove">×</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </transition>
 
   </div>
 </template>
@@ -496,9 +644,73 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import UButton from '~/components/ui/Button.vue'
+import USwitch from '~/components/ui/Switch.vue'
 import { ESRI_LIBRARY } from '~/config/esriLibrary'
 
 const config = useRuntimeConfig()
+const { viewCount } = usePageViews()
+
+// ── Bug report ────────────────────────────────────────────────────────────
+const showBugModal   = ref(false)
+const bugDescription = ref('')
+const bugEmail       = ref('')
+const bugStatus      = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+
+// ── Disclaimer ─────────────────────────────────────────────────────────────────────
+const DISCLAIMER_KEY    = 'er-disclaimer-hide'
+const showDisclaimer    = ref(false)
+const disclaimerDontShow = ref(false)
+
+function closeDisclaimer() {
+  if (disclaimerDontShow.value) localStorage.setItem(DISCLAIMER_KEY, '1')
+  showDisclaimer.value = false
+}
+
+function closeBugModal() {
+  showBugModal.value = false
+  bugStatus.value = 'idle'
+  bugDescription.value = ''
+  bugEmail.value = ''
+}
+
+async function submitBugReport() {
+  if (!bugDescription.value.trim()) return
+  const { upstashRedisUrl, upstashRedisToken } = config.public as {
+    upstashRedisUrl?: string
+    upstashRedisToken?: string
+  }
+  if (!upstashRedisUrl || !upstashRedisToken) {
+    bugStatus.value = 'error'
+    return
+  }
+  bugStatus.value = 'submitting'
+  const payload = JSON.stringify({
+    page: '/tools/esri-rest-downloader',
+    timestamp: new Date().toISOString(),
+    layerName: activeLayer.value?.layerName ?? null,
+    layerUrl: activeLayer.value?.url ?? null,
+    description: bugDescription.value.trim(),
+    email: bugEmail.value.trim() || null,
+    userAgent: navigator.userAgent,
+  })
+  try {
+    const res = await fetch(upstashRedisUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${upstashRedisToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(['LPUSH', 'bugs:/tools/esri-rest-downloader', payload]),
+    })
+    if (!res.ok) throw new Error('non-2xx')
+    bugStatus.value = 'success'
+    bugDescription.value = ''
+    bugEmail.value = ''
+    setTimeout(closeBugModal, 2500)
+  } catch {
+    bugStatus.value = 'error'
+  }
+}
 
 // ── Panel visibility ──────────────────────────────────────────────────────
 const showPanel           = ref(true)
@@ -644,8 +856,13 @@ const activeLayer = ref<{
 } | null>(null)
 const mapLayerKey       = ref<string | null>(null)
 const layerStatus       = ref<'idle' | 'loading' | 'loaded' | 'error' | 'no-query'>('idle')
+const layerPhase        = ref<'connecting' | 'fetching' | 'paginating' | ''>('')
 const layerError        = ref('')
 const layerFeatureCount = ref<number | null>(null)
+const layerPaginating   = ref(false)
+const layerSlowWarning  = ref(false)
+let   slowTimer: ReturnType<typeof setTimeout> | null = null
+let   previewToken      = 0  // incremented to cancel in-flight pagination
 
 // ── Download ─────────────────────────────────────────────────────────────────
 const downloadStatus  = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
@@ -653,7 +870,31 @@ const downloadFetched = ref(0)
 const downloadTotal   = ref(0)
 const downloadResult  = ref<any>(null)
 let   cancelRequested = false
-const autoUpdate      = ref(false)
+
+// ── Loaded feature tracking (accumulate-as-you-pan) ──────────────────────────
+let loadedOids = new Set<number | string>()
+
+// ── Pinned layer list ─────────────────────────────────────────────────────────
+const LAYER_PALETTE = [
+  '#ef4444', '#3b82f6', '#f97316', '#8b5cf6',
+  '#22c55e', '#f59e0b', '#06b6d4', '#ec4899',
+]
+interface PinnedLayer {
+  id: string
+  label: string
+  color: string          // representative swatch color (always a plain string)
+  visible: boolean
+  geomCategory: 'polygon' | 'line' | 'point'
+  mapLayerIds: string[]
+  featureCount: number
+  paint: ReturnType<typeof rendererToMapPaint>
+}
+let   pinCounter        = 0
+let   activeGeomCategory: 'polygon' | 'line' | 'point' = 'point'
+let   activeRenderer: any = null
+let   activeGeomType      = ''
+const pinnedLayers      = ref<PinnedLayer[]>([])
+const showLayers        = ref(true)
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 const detailPanelOpen = ref(false)
@@ -1314,100 +1555,229 @@ const rendererToMapPaint = (renderer: any, geomType: string, fallback: string) =
 
 const loadLayerPreview = async (isInitial = false) => {
   if (!activeLayer.value || !map) return
-  layerStatus.value = 'loading'
+
+  // Each call gets a unique token; pagination loops check this to self-cancel.
+  const myToken = ++previewToken
+
+  layerStatus.value       = 'loading'
+  layerPhase.value        = 'connecting'
+  layerPaginating.value   = false
+  layerFeatureCount.value = null
+  layerSlowWarning.value  = false
+  if (slowTimer) { clearTimeout(slowTimer); slowTimer = null }
+  slowTimer = setTimeout(() => {
+    if (layerStatus.value === 'loading') layerSlowWarning.value = true
+  }, 7000)
   clearMapLayer()
 
   try {
     const bounds = map.getBounds()
-    const bbox = {
-      xmin: bounds.getWest(),
-      ymin: bounds.getSouth(),
-      xmax: bounds.getEast(),
-      ymax: bounds.getNorth(),
+    const bboxGeom = JSON.stringify({
+      xmin: bounds.getWest(), ymin: bounds.getSouth(),
+      xmax: bounds.getEast(), ymax: bounds.getNorth(),
+    })
+
+    const baseParams: Record<string, string> = {
+      where: '1=1', outSR: '4326', outFields: '*',
+      resultRecordCount: '1000', returnGeometry: 'true', f: 'json',
+    }
+    const bboxParams: Record<string, string> = {
+      geometry: bboxGeom, geometryType: 'esriGeometryEnvelope', inSR: '4326',
     }
 
-    const baseParams = {
-      where: '1=1',
-      outSR: '4326',
-      outFields: '*',
-      resultRecordCount: '1000',
-      returnGeometry: 'true',
-    }
-
-    // Fetch layer metadata (for renderer/symbology) in parallel with first feature query
-    const [meta, firstData] = await Promise.all([
+    // Fetch metadata + first page in parallel (use f=json so exceededTransferLimit is available)
+    layerPhase.value = 'fetching'
+    const [meta, firstRaw] = await Promise.all([
       esriFetch(activeLayer.value.url, { f: 'json' }).catch(() => null),
-      esriQueryAsGeoJSON(`${activeLayer.value.url}/query`, {
-        ...baseParams,
-        geometry: JSON.stringify(bbox),
-        geometryType: 'esriGeometryEnvelope',
-        inSR: '4326',
-      }),
+      esriFetch(`${activeLayer.value.url}/query`, { ...baseParams, ...bboxParams }),
     ])
 
-    let data = firstData
-    if (!data?.features) throw new Error('No features returned')
+    if (myToken !== previewToken) return  // cancelled by newer call
+    if (slowTimer) { clearTimeout(slowTimer); slowTimer = null }
+    layerSlowWarning.value = false
+    if (!firstRaw?.features) throw new Error('No features returned')
 
-    // If nothing visible in the current view, retry globally so we can auto-zoom to the data
-    if (data.features.length === 0) {
-      const global = await esriQueryAsGeoJSON(`${activeLayer.value.url}/query`, baseParams)
-      if (global?.features?.length > 0) data = global
+    let rawData  = firstRaw
+    let usedGlobal = false
+
+    // Nothing in view → retry globally so we can auto-zoom
+    if (rawData.features.length === 0) {
+      const globalRaw = await esriFetch(`${activeLayer.value.url}/query`, { ...baseParams })
+      if (myToken !== previewToken) return
+      if (globalRaw?.features?.length > 0) { rawData = globalRaw; usedGlobal = true }
     }
 
-    layerFeatureCount.value = data.features.length
+    // Determine geometry type: stored index value → metadata → raw ESRI response
+    let geomType = activeLayer.value.geometryType ?? meta?.geometryType ?? rawData.geometryType ?? ''
+    if (!geomType && rawData.features.length > 0) {
+      const g = rawData.features.find((f: any) => f.geometry)?.geometry
+      if (g?.rings)  geomType = 'esriGeometryPolygon'
+      else if (g?.paths) geomType = 'esriGeometryPolyline'
+      else           geomType = 'esriGeometryPoint'
+    }
 
-    const geojson: any = data
+    // Convert first page and render immediately
+    const allFeatures: any[] = esriJsonToGeoJSON(rawData).features
+    layerFeatureCount.value  = allFeatures.length
 
-    // Add to map
+    const geojson = { type: 'FeatureCollection' as const, features: allFeatures }
+  // After first-page features are added to allFeatures, seed loadedOids
+    for (const f of allFeatures) {
+      const p = f.properties ?? {}
+      const oid = p.OBJECTID ?? p.objectid ?? p.FID ?? p.fid ?? p.OID ?? p.oid ?? null
+      if (oid !== null) loadedOids.add(oid)
+    }
+
     map.addSource('er-layer', { type: 'geojson', data: geojson })
 
-    // Prefer the stored ESRI geometry type; fall back to metadata, then GeoJSON detection
-    let geomType = activeLayer.value.geometryType ?? meta?.geometryType ?? ''
-    if (!geomType && data.features.length > 0) {
-      const firstGeomType: string = data.features.find((f: any) => f.geometry?.type)?.geometry?.type ?? ''
-      if      (firstGeomType.includes('Polygon'))    geomType = 'esriGeometryPolygon'
-      else if (firstGeomType.includes('LineString')) geomType = 'esriGeometryPolyline'
-      else if (firstGeomType.includes('Point'))      geomType = 'esriGeometryPoint'
-    }
-
     const renderer = meta?.drawingInfo?.renderer ?? null
-    const fallbackColor = serviceTypeColor(activeLayer.value.svcType)
-    const paint = rendererToMapPaint(renderer, geomType, fallbackColor)
+    const paint    = rendererToMapPaint(renderer, geomType, serviceTypeColor(activeLayer.value.svcType))
+
+    // Cache for use in download-to-map
+    activeRenderer = renderer
+    activeGeomType = geomType
 
     if (geomType.includes('Polygon') || geomType.includes('Envelope')) {
+      activeGeomCategory = 'polygon'
       map.addLayer({ id: 'er-layer-fill',   type: 'fill',   source: 'er-layer', paint: paint.fill })
       map.addLayer({ id: 'er-layer-line',   type: 'line',   source: 'er-layer', paint: paint.line })
     } else if (geomType.includes('Polyline') || geomType.includes('Line')) {
+      activeGeomCategory = 'line'
       map.addLayer({ id: 'er-layer-line',   type: 'line',   source: 'er-layer', paint: paint.line })
     } else {
+      activeGeomCategory = 'point'
       map.addLayer({ id: 'er-layer-circle', type: 'circle', source: 'er-layer', paint: paint.circle })
     }
 
-    // Auto-zoom to features only on first load of a layer, not on subsequent bbox reloads
-    if (isInitial && data.features.length > 0) {
-      const bbox = featureBbox(geojson)
-      if (bbox) {
-        map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 60, duration: 600, maxZoom: 14 })
-      }
+    // Auto-zoom on first load
+    if (isInitial && allFeatures.length > 0) {
+      const bb = featureBbox(geojson)
+      if (bb) map.fitBounds([[bb[0], bb[1]], [bb[2], bb[3]]], { padding: 60, duration: 600, maxZoom: 14 })
     }
 
+    layerPhase.value  = ''
     layerStatus.value = 'loaded'
+
+    // ── Incremental pagination ───────────────────────────────────────────────
+    // Only paginate when within-bbox query (not the global fallback), and server
+    // signals there are more pages via exceededTransferLimit.
+    if (!usedGlobal && rawData.exceededTransferLimit) {
+      layerPhase.value      = 'paginating'
+      layerPaginating.value = true
+      let offset = 1000
+      while (true) {
+        if (myToken !== previewToken) { layerPaginating.value = false; return }
+
+        const page = await esriFetch(`${activeLayer.value.url}/query`, {
+          ...baseParams, ...bboxParams,
+          resultOffset: String(offset),
+        })
+
+        if (myToken !== previewToken) { layerPaginating.value = false; return }
+        if (!page?.features?.length) break
+
+        const pageFeatures = esriJsonToGeoJSON(page).features
+        for (const f of pageFeatures) {
+          const p = f.properties ?? {}
+          const oid = p.OBJECTID ?? p.objectid ?? p.FID ?? p.fid ?? p.OID ?? p.oid ?? null
+          if (oid !== null) loadedOids.add(oid)
+        }
+        allFeatures.push(...pageFeatures)
+        layerFeatureCount.value = allFeatures.length
+
+        // Append to map source in-place — no flicker, no layer removal
+        ;(map.getSource('er-layer') as any)?.setData({ type: 'FeatureCollection', features: allFeatures })
+
+        if (!page.exceededTransferLimit) break
+        offset += 1000
+      }
+      layerPaginating.value = false
+    }
+
   } catch (e: any) {
-    layerError.value  = e?.message ?? 'Unknown error'
-    layerStatus.value = 'error'
+    if (myToken !== previewToken) return  // suppress errors from cancelled loads
+    layerError.value      = e?.message ?? 'Unknown error'
+    layerStatus.value     = 'error'
+    layerPaginating.value = false
   }
 }
 
-// Re-load preview when map moves (debounced) — only when autoUpdate is enabled
+// Expand the visible layer to include features in the new map bbox, appending
+// only features not already loaded (deduped by OBJECTID / FID / OID).
 let moveTimer: ReturnType<typeof setTimeout> | null = null
 const onMapMoveEnd = () => {
-  if (!autoUpdate.value) return
   if (!mapLayerKey.value) return
+  // Only expand when a layer is fully loaded (or paginating) — not during initial load
   if (layerStatus.value !== 'loaded' && layerStatus.value !== 'error') return
   if (moveTimer) clearTimeout(moveTimer)
-  moveTimer = setTimeout(() => {
-    if (activeLayer.value) loadLayerPreview(false)
-  }, 800)
+  moveTimer = setTimeout(() => expandLayerPreview(), 800)
+}
+
+const expandLayerPreview = async () => {
+  if (!activeLayer.value || !map) return
+  const myToken = ++previewToken
+
+  layerPaginating.value = true
+
+  const bounds = map.getBounds()
+  const bboxGeom = JSON.stringify({
+    xmin: bounds.getWest(), ymin: bounds.getSouth(),
+    xmax: bounds.getEast(), ymax: bounds.getNorth(),
+  })
+
+  const baseParams: Record<string, string> = {
+    where: '1=1', outSR: '4326', outFields: '*',
+    resultRecordCount: '1000', returnGeometry: 'true', f: 'json',
+  }
+  const bboxParams = {
+    geometry: bboxGeom, geometryType: 'esriGeometryEnvelope', inSR: '4326',
+  }
+
+  // Get the current accumulated features from the source
+  const source = map.getSource('er-layer') as any
+  if (!source) { layerPaginating.value = false; return }
+  const currentData = source._data as { type: string; features: any[] }
+  const allFeatures: any[] = currentData?.features ? [...currentData.features] : []
+
+  const oidKey = (f: any): number | string | null => {
+    const p = f.properties ?? {}
+    return p.OBJECTID ?? p.objectid ?? p.FID ?? p.fid ?? p.OID ?? p.oid ?? null
+  }
+
+  const appendPage = (features: any[]) => {
+    let added = 0
+    for (const f of features) {
+      const oid = oidKey(f)
+      if (oid !== null) {
+        if (loadedOids.has(oid)) continue
+        loadedOids.add(oid)
+      }
+      allFeatures.push(f)
+      added++
+    }
+    if (added > 0) {
+      layerFeatureCount.value = allFeatures.length
+      source.setData({ type: 'FeatureCollection', features: allFeatures })
+    }
+  }
+
+  try {
+    let offset = 0
+    while (true) {
+      if (myToken !== previewToken) { layerPaginating.value = false; return }
+      const page = await esriFetch(`${activeLayer.value.url}/query`, {
+        ...baseParams, ...bboxParams,
+        resultOffset: String(offset),
+      })
+      if (myToken !== previewToken) { layerPaginating.value = false; return }
+      if (!page?.features?.length) break
+      appendPage(esriJsonToGeoJSON(page).features)
+      if (!page.exceededTransferLimit) break
+      offset += 1000
+    }
+  } catch { /* silently ignore expand errors */ }
+
+  if (myToken === previewToken) layerPaginating.value = false
 }
 
 // Compute bbox [minLng, minLat, maxLng, maxLat] from a GeoJSON FeatureCollection
@@ -1440,6 +1810,28 @@ const clearMapLayer = () => {
     if (map.getLayer(id)) map.removeLayer(id)
   })
   if (map.getSource('er-layer')) map.removeSource('er-layer')
+  loadedOids = new Set()  // reset accumulated OID set
+}
+
+// ── Pinned layer management ───────────────────────────────────────────────────
+const removePinnedLayer = (id: string) => {
+  const layer = pinnedLayers.value.find(l => l.id === id)
+  if (!layer) return
+  if (map) {
+    for (const lid of layer.mapLayerIds) { if (map.getLayer(lid)) map.removeLayer(lid) }
+    if (map.getSource(id)) map.removeSource(id)
+  }
+  pinnedLayers.value = pinnedLayers.value.filter(l => l.id !== id)
+}
+
+const togglePinnedLayer = (id: string) => {
+  const layer = pinnedLayers.value.find(l => l.id === id)
+  if (!layer || !map) return
+  layer.visible = !layer.visible
+  const vis = layer.visible ? 'visible' : 'none'
+  for (const lid of layer.mapLayerIds) {
+    if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', vis)
+  }
 }
 
 // ── GeoParquet Download ───────────────────────────────────────────────────────
@@ -1587,6 +1979,60 @@ const downloadGeoParquet = async () => {
 
     downloadResult.value = { rows, fileName, sizeBytes: buffer.byteLength }
     downloadStatus.value = 'success'
+
+    // Add downloaded features to the map layer list using the same symbology as the preview
+    try {
+      if (map && allFeatures.length > 0) {
+        const geojson = { type: 'FeatureCollection' as const, features: allFeatures }
+        const sourceId: string = `er-pin-${pinCounter}`
+        const fallback = activeLayer.value ? serviceTypeColor(activeLayer.value.svcType) : '#10b981'
+        const paint    = rendererToMapPaint(activeRenderer, activeGeomType, fallback)
+
+        // Derive a single representative color for the swatch from the renderer
+        const swatchColor = (() => {
+          const toRgb = (c?: number[]) => c ? `rgba(${c[0]},${c[1]},${c[2]},1)` : null
+          if (!activeRenderer || activeRenderer.type === 'simple')
+            return toRgb(activeRenderer?.symbol?.color) ?? fallback
+          if (activeRenderer.type === 'uniqueValue')
+            return toRgb(activeRenderer.defaultSymbol?.color
+              ?? activeRenderer.uniqueValueInfos?.[0]?.symbol?.color) ?? fallback
+          if (activeRenderer.type === 'classBreaks')
+            return toRgb(activeRenderer.classBreakInfos?.[0]?.symbol?.color) ?? fallback
+          return fallback
+        })()
+        pinCounter++
+
+        const entry: PinnedLayer = {
+          id: sourceId,
+          label: activeLayer.value
+            ? `${activeLayer.value.layerName} — ${activeLayer.value.svcName}`
+            : sourceId,
+          color: swatchColor,
+          visible: true,
+          geomCategory: activeGeomCategory,
+          mapLayerIds: [],
+          featureCount: allFeatures.length,
+          paint,
+        }
+
+        map.addSource(sourceId, { type: 'geojson', data: geojson })
+
+        if (activeGeomCategory === 'polygon') {
+          map.addLayer({ id: `${sourceId}-fill`, type: 'fill',   source: sourceId, paint: paint.fill })
+          map.addLayer({ id: `${sourceId}-line`, type: 'line',   source: sourceId, paint: paint.line })
+          entry.mapLayerIds = [`${sourceId}-fill`, `${sourceId}-line`]
+        } else if (activeGeomCategory === 'line') {
+          map.addLayer({ id: `${sourceId}-line`, type: 'line',   source: sourceId, paint: paint.line })
+          entry.mapLayerIds = [`${sourceId}-line`]
+        } else {
+          map.addLayer({ id: `${sourceId}-circle`, type: 'circle', source: sourceId, paint: paint.circle })
+          entry.mapLayerIds = [`${sourceId}-circle`]
+        }
+
+        pinnedLayers.value.push(entry)
+        showLayers.value = true
+      }
+    } catch { /* map additions are non-fatal */ }
   } catch (e: any) {
     if (e?.message === 'Cancelled by user') {
       downloadStatus.value = 'idle'
@@ -1614,6 +2060,11 @@ const initMap = () => {
 }
 
 onMounted(() => {
+  // Show disclaimer unless user dismissed it permanently
+  try {
+    if (!localStorage.getItem(DISCLAIMER_KEY)) showDisclaimer.value = true
+  } catch { showDisclaimer.value = true }
+
   // Restore custom services from localStorage
   try {
     const saved = localStorage.getItem(CUSTOM_KEY)
@@ -1690,66 +2141,20 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
-.er-map-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: rgba(255,255,255,0.92);
+.er-map-loaded-pill {
+  background: rgba(0,0,0,0.55);
   backdrop-filter: blur(6px);
-  border: 1px solid rgba(0,0,0,0.15);
-  border-radius: 9999px;
-  padding: 0.35rem 0.75rem 0.35rem 0.5rem;
-  cursor: pointer;
-  user-select: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-}
-
-.er-map-toggle-label {
+  color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  letter-spacing: 0.01em;
-  color: #1a1a2e;
+  border-radius: 9999px;
+  padding: 0.3rem 0.75rem;
   white-space: nowrap;
-}
-
-.er-map-toggle-input {
-  display: none;
-}
-
-.er-map-toggle-track {
-  position: relative;
-  width: 28px;
-  height: 16px;
-  border-radius: 9999px;
-  background: #cbd5e1;
-  border: 1px solid #94a3b8;
-  flex-shrink: 0;
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.er-map-toggle-track--on {
-  background: hsl(var(--primary));
-  border-color: hsl(var(--primary));
-}
-
-.er-map-toggle-thumb {
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  width: 12px;
-  height: 12px;
-  border-radius: 9999px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-  transition: transform 0.2s;
-}
-
-.er-map-toggle-track--on .er-map-toggle-thumb {
-  transform: translateX(12px);
+  letter-spacing: 0.01em;
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────────── */
@@ -1817,6 +2222,22 @@ onUnmounted(() => {
 .er-fab:hover {
   background: hsl(var(--card));
   box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+}
+
+.er-fab--right { left: auto; right: 1rem; }
+
+.er-fab-badge {
+  position: absolute;
+  top: -4px; right: -4px;
+  background: #10b981;
+  color: #000;
+  font-size: 0.55rem;
+  font-weight: 700;
+  border-radius: 50%;
+  width: 14px; height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ── Geo search wrapper (above panel) ────────────────────────────── */
@@ -2242,6 +2663,16 @@ onUnmounted(() => {
   color: hsl(var(--muted-foreground));
 }
 
+.er-count-paginating {
+  opacity: 0.6;
+  animation: er-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes er-pulse {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 0.8; }
+}
+
 .er-action-row {
   display: flex;
   gap: 0.4rem;
@@ -2557,6 +2988,304 @@ onUnmounted(() => {
   opacity: 0;
 }
 
+/* ── Disclaimer modal ────────────────────────────────────────────────────── */
+.er-disclaimer-overlay {
+  z-index: 300;
+}
+.er-disclaimer {
+  max-width: 400px;
+}
+.er-disclaimer-body {
+  gap: 0.85rem;
+}
+.er-disclaimer-p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: hsl(var(--foreground));
+  line-height: 1.55;
+}
+.er-disclaimer-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.5;
+  background: hsl(var(--muted) / 0.35);
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+}
+.er-disclaimer-warn svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  opacity: 0.7;
+}
+.er-disclaimer-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding-top: 0.25rem;
+}
+.er-disclaimer-switch-label {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+.er-disclaimer-link {
+  color: hsl(var(--muted-foreground));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.er-disclaimer-link:hover {
+  color: hsl(var(--foreground));
+}
+
+/* ── Layer loading phase label ───────────────────────────────────────────── */
+.er-phase-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: hsl(var(--muted-foreground));
+  margin-top: 0.25rem;
+}
+.er-phase-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--muted-foreground));
+  flex-shrink: 0;
+  animation: er-phase-pulse 1.2s ease-in-out infinite;
+}
+@keyframes er-phase-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+/* ── Slow service warning ────────────────────────────────────────────────── */
+.er-slow-warning {
+  margin-top: 0.35rem;
+  font-size: 0.68rem;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.45;
+}
+.er-slow-link {
+  color: hsl(var(--muted-foreground));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  margin-left: 0.2rem;
+  white-space: nowrap;
+}
+.er-slow-link:hover {
+  color: hsl(var(--foreground));
+}
+
+/* ── Map progress bar ────────────────────────────────────────────────────── */
+.er-map-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 20;
+  background: hsl(var(--border));
+  overflow: hidden;
+}
+.er-map-progress-bar {
+  height: 100%;
+  width: 40%;
+  background: hsl(var(--foreground) / 0.55);
+  animation: er-progress-slide 1.4s ease-in-out infinite;
+}
+@keyframes er-progress-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* ── Map HUD (bottom-right: views + bug report) ─────────────────────────── */
+.er-hud {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.er-hud-eye {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.65);
+  cursor: default;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.er-hud:hover .er-hud-eye {
+  color: #fff;
+  background: rgba(0,0,0,0.72);
+}
+
+.er-hud-popup {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(5px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.er-hud:hover .er-hud-popup {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.er-hud-views {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 0.2rem 0.55rem;
+  white-space: nowrap;
+}
+
+.er-hud-bug {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 0.2rem 0.55rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.er-hud-bug:hover {
+  color: #fff;
+  background: rgba(0,0,0,0.72);
+}
+
+/* ── Bug report modal ────────────────────────────────────────────────────── */
+.er-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.er-modal {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif;
+}
+
+.er-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.er-modal-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin: 0;
+}
+
+.er-modal-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.er-bug-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  font-size: 0.68rem;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.4);
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  margin-bottom: 0.25rem;
+}
+
+.er-bug-textarea,
+.er-bug-input {
+  width: 100%;
+  margin-top: 0.4rem;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  color: hsl(var(--foreground));
+  font-size: 0.8rem;
+  padding: 0.5rem 0.65rem;
+  box-sizing: border-box;
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+.er-bug-textarea:focus,
+.er-bug-input:focus {
+  border-color: hsl(var(--ring));
+}
+.er-bug-input {
+  resize: none;
+}
+
+.er-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid hsl(var(--border));
+}
+
+/* ── Modal fade transition ───────────────────────────────────────────────── */
+.er-fade-enter-active,
+.er-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+.er-fade-enter-from,
+.er-fade-leave-to {
+  opacity: 0;
+}
+
 /* ── Idle (kept for legacy) ─────────────────────────────────────────────── */
 .er-mono {
   font-family: monospace;
@@ -2859,4 +3588,87 @@ onUnmounted(() => {
   transform: translateX(-16px);
   opacity: 0;
 }
+
+/* ── Slide-right transition (layers panel) ─────────────────────────────── */
+.er-slide-right-enter-active,
+.er-slide-right-leave-active {
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease;
+}
+.er-slide-right-enter-from,
+.er-slide-right-leave-to {
+  transform: translateX(1.5rem);
+  opacity: 0;
+}
+
+/* ── Layers panel (right side) ─────────────────────────────────────────── */
+.er-layers-panel {
+  position: absolute;
+  top: 1rem; right: 1rem;
+  width: 300px;
+  max-height: calc(100vh - 2rem);
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 10;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.er-layers-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.er-layer-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.er-layer-list::-webkit-scrollbar { width: 4px; }
+.er-layer-list::-webkit-scrollbar-track { background: transparent; }
+.er-layer-list::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 2px; }
+
+.er-layer-row-wrap { display: flex; flex-direction: column; gap: 0.3rem; }
+.er-layer-row { display: flex; align-items: center; gap: 0.45rem; padding: 0.25rem 0.15rem; }
+
+.er-layer-swatch {
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.er-layer-info {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  gap: 0.05rem;
+}
+.er-layer-name {
+  font-size: 0.68rem; font-weight: 500;
+  color: hsl(var(--foreground));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.er-layer-meta { font-size: 0.6rem; color: hsl(var(--muted-foreground)); }
+
+.er-layer-btn {
+  background: none; border: none; cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.85rem; padding: 0.1rem 0.2rem;
+  border-radius: 4px; line-height: 1;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.er-layer-btn:hover { color: hsl(var(--foreground)); background: hsl(var(--border)); }
+.er-layer-btn--remove:hover { color: #ef4444; background: rgba(239,68,68,0.12); }
+
 </style>
