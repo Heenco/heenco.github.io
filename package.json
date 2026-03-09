@@ -8,7 +8,11 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "fetch-map": "node scripts/fetch-map.js"
+    "fetch-map": "node scripts/fetch-map.js",
+    "index:esri": "node scripts/gen-esri-index.mjs",
+    "predev": "node scripts/gen-esri-index.mjs",
+    "prebuild": "node scripts/gen-esri-index.mjs",
+    "pregenerate": "node scripts/gen-esri-index.mjs"
   },
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.33.1-dev20.0",

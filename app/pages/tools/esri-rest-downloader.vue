@@ -52,38 +52,6 @@
         </div>
       <div class="er-panel-inner">
 
-        <!-- URL Input — only shown when no endpoint is loaded -->
-        <section v-if="tree.length === 0" class="er-section">
-          <label class="er-label">Service URL</label>
-          <div class="er-url-row">
-            <input
-              v-model="serviceUrl"
-              type="text"
-              class="er-input"
-              placeholder="https://example.com/arcgis/rest/services"
-              @keyup.enter="explore"
-            />
-          </div>
-          <div v-if="urlStatus === 'invalid'" class="er-msg er-msg-warn">
-            ✗ Not a valid ArcGIS REST endpoint
-          </div>
-          <div v-if="urlStatus === 'cors'" class="er-msg er-msg-warn">
-            ✗ CORS blocked — server does not permit browser access
-          </div>
-          <div v-if="urlStatus === 'ok'" class="er-msg er-msg-success er-msg-sm">
-            ✓ Valid ArcGIS REST endpoint detected
-          </div>
-          <UButton
-            variant="primary"
-            style="width: 100%; margin-top: 0.25rem"
-            :disabled="exploreStatus === 'loading' || !serviceUrl.trim()"
-            @click="explore"
-          >
-            <span v-if="exploreStatus === 'loading'" class="er-spinner">◌</span>
-            {{ exploreStatus === 'loading' ? `Fetching… ${fetchedCount} / ${totalCount}` : 'Explore' }}
-          </UButton>
-        </section>
-
         <!-- Active endpoint bar — shown once a service is loaded -->
         <div v-if="tree.length > 0" class="er-active-bar">
           <button class="er-back-library" @click="clearExplore">← Browse library</button>
@@ -100,7 +68,7 @@
         </section>
 
         <!-- Tree -->
-        <section v-if="tree.length > 0" class="er-section er-section--tree er-section--grow">
+        <section ref="treeSection" v-if="tree.length > 0" class="er-section er-section--tree er-section--grow">
           <div class="er-tree">
             <!-- Root folders -->
             <template v-for="folder in filteredTree" :key="folder.name">
@@ -147,6 +115,7 @@
                             :key="layer.id"
                             class="er-layer"
                             :class="{ 'er-layer--active': activeLayer?.key === `${svc.key}/${layer.id}` }"
+                            :data-layer-key="`${svc.key}/${layer.id}`"
                             @click="selectLayer(svc, layer)"
                           >
                             <span class="er-geom-icon" :title="layer.geometryType ?? 'Table'">{{ geomIcon(layer.geometryType) }}</span>
@@ -233,17 +202,97 @@
           </template>
         </section>
 
-        <!-- Library (idle / onboarding state) -->
+        <!-- Library / Layer search (idle state) -->
         <section v-if="tree.length === 0 && exploreStatus !== 'loading'" class="er-section er-library er-section--grow">
           <div class="er-library-hdr">
-            <span class="er-label" style="margin:0">Service Library</span>
+            <span class="er-label" style="margin:0">Layer Search</span>
+            <span v-if="indexLoadState === 'done' && esriIndex" class="er-idx-meta">{{ esriIndex.layers.length.toLocaleString() }} indexed</span>
           </div>
+
           <div class="er-search-wrap" style="margin-bottom:0.5rem">
             <svg class="er-search-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input v-model="librarySearch" class="er-search" placeholder="Search services…" type="text" />
+            <input v-model="librarySearch" class="er-search" placeholder="Search layers, services, endpoints…" type="text" />
             <button v-if="librarySearch" class="er-search-clear" @click="librarySearch = ''">✕</button>
           </div>
-          <div class="er-library-list">
+
+          <!-- ── Search results (query active) ─────────────────────────── -->
+          <div v-if="librarySearch.trim()" class="er-library-results">
+
+            <!-- Matching endpoints from library -->
+            <template v-if="filteredLibrary.length > 0">
+              <div class="er-idx-section-hdr">
+                Endpoints
+                <span class="er-idx-count">{{ filteredLibrary.reduce((n, g) => n + g.entries.length, 0) }}</span>
+              </div>
+              <template v-for="grp in filteredLibrary" :key="grp.group">
+                <div class="er-lib-group-hdr">
+                  <span class="er-lib-group-label">{{ grp.group }}</span>
+                  <span class="er-lib-group-count">{{ grp.entries.length }}</span>
+                </div>
+                <div
+                  v-for="entry in grp.entries"
+                  :key="entry.name + entry.url"
+                  class="er-lib-entry-wrap"
+                >
+                  <button class="er-lib-entry" :title="entry.url" @click="loadLibraryEntry(entry)">
+                    <span class="er-lib-name">{{ entry.name }}</span>
+                    <span class="er-lib-url">{{ entry.url.replace(/^https?:\/\//, '') }}</span>
+                  </button>
+                </div>
+              </template>
+            </template>
+
+            <!-- Matching layers from index -->
+            <div class="er-idx-section-hdr">
+              Layers
+              <span v-if="indexLoadState === 'done'" class="er-idx-count">
+                {{ filteredIndexResults.length }}{{ filteredIndexResults.length >= MAX_INDEX_RESULTS ? '+' : '' }}
+              </span>
+            </div>
+
+            <div v-if="indexLoadState === 'loading'" class="er-idx-loading">
+              <span class="er-spinner">◌</span> Searching index…
+            </div>
+            <div v-else-if="indexLoadState === 'error'" class="er-empty" style="font-size:0.72rem">
+              Index not found — run <code style="font-family:monospace">npm run index:esri</code>
+            </div>
+            <template v-else-if="indexLoadState === 'done' && groupedIndexResults.length > 0">
+              <template v-for="grp in groupedIndexResults" :key="grp.endpointName">
+                <div class="er-idx-group-hdr">{{ grp.endpointName }}</div>
+                <div
+                  v-for="item in grp.items"
+                  :key="item.serviceUrl + '/' + item.layerId"
+                  class="er-idx-row"
+                  :class="{ 'er-idx-row--active': activeLayer?.key === indexKey(item) }"
+                  @click="selectFromIndex(item)"
+                >
+                  <span class="er-geom-icon" :title="item.geometryType ?? item.serviceType">{{ geomIcon(item.geometryType ?? undefined) }}</span>
+                  <div class="er-idx-info">
+                    <span class="er-idx-layer-name">{{ item.layerName ?? item.serviceName }}</span>
+                    <span class="er-idx-service">{{ item.serviceName }} · {{ item.serviceType }}</span>
+                  </div>
+                  <button
+                    v-if="QUERYABLE_TYPES.includes(item.serviceType) && item.layerId != null"
+                    class="er-eye-btn"
+                    :class="{ 'er-eye-btn--active': mapLayerKey === indexKey(item) }"
+                    :title="mapLayerKey === indexKey(item) ? 'Hide from map' : 'Show on map'"
+                    @click.stop="showFromIndex(item)"
+                  >
+                    <span v-if="mapLayerKey === indexKey(item) && layerStatus === 'loading'" class="er-spinner er-spinner--sm">◌</span>
+                    <svg v-else-if="mapLayerKey === indexKey(item)" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <svg v-else xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  </button>
+                </div>
+              </template>
+            </template>
+            <div v-else-if="indexLoadState === 'done' && filteredIndexResults.length === 0 && filteredLibrary.length === 0" class="er-empty">
+              No results for "{{ librarySearch }}"
+            </div>
+
+          </div>
+
+          <!-- ── Library list (no query) ───────────────────────────────── -->
+          <div v-else class="er-library-list">
             <template v-for="grp in filteredLibrary" :key="grp.group">
               <div class="er-lib-group-hdr">
                 <span class="er-lib-group-label">{{ grp.group }}</span>
@@ -276,7 +325,47 @@
           </div>
         </section>
 
+      </div><!-- /er-panel-inner -->
+
+      <!-- ── Custom endpoint footer ────────────────────────────────────── -->
+      <div v-if="tree.length === 0" class="er-custom-footer">
+        <button class="er-custom-footer-toggle" @click="showCustomEndpoint = !showCustomEndpoint">
+          <svg class="er-custom-footer-chevron" :class="{ open: showCustomEndpoint }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+          <span>Custom endpoint</span>
+        </button>
+        <transition name="er-footer-slide">
+          <div v-if="showCustomEndpoint" class="er-custom-footer-body">
+            <div class="er-url-row">
+              <input
+                v-model="serviceUrl"
+                type="text"
+                class="er-input"
+                placeholder="https://example.com/arcgis/rest/services"
+                @keyup.enter="explore"
+              />
+            </div>
+            <div v-if="urlStatus === 'invalid'" class="er-msg er-msg-warn er-msg-sm">
+              ✗ Not a valid ArcGIS REST endpoint
+            </div>
+            <div v-if="urlStatus === 'cors'" class="er-msg er-msg-warn er-msg-sm">
+              ✗ CORS blocked — server does not permit browser access
+            </div>
+            <div v-if="urlStatus === 'ok'" class="er-msg er-msg-success er-msg-sm">
+              ✓ Valid ArcGIS REST endpoint detected
+            </div>
+            <UButton
+              variant="primary"
+              style="width: 100%; margin-top: 0.1rem"
+              :disabled="exploreStatus === 'loading' || !serviceUrl.trim()"
+              @click="explore"
+            >
+              <span v-if="exploreStatus === 'loading'" class="er-spinner">◌</span>
+              {{ exploreStatus === 'loading' ? `Fetching… ${fetchedCount} / ${totalCount}` : 'Explore' }}
+            </UButton>
+          </div>
+        </transition>
       </div>
+
       </aside>
     </transition>
 
@@ -405,17 +494,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import UButton from '~/components/ui/Button.vue'
 import { ESRI_LIBRARY } from '~/config/esriLibrary'
 
 const config = useRuntimeConfig()
 
 // ── Panel visibility ──────────────────────────────────────────────────────
-const showPanel = ref(true)
+const showPanel           = ref(true)
+const showCustomEndpoint  = ref(true)
 
 // ── Geocoding search ──────────────────────────────────────────────────────
 const geoSearchWrapperRef = ref<HTMLElement | null>(null)
+const treeSection         = ref<HTMLElement | null>(null)
 const geoSearchQuery      = ref('')
 const geoSuggestions      = ref<any[]>([])
 const showGeoSuggestions  = ref(false)
@@ -572,6 +663,145 @@ const detailError     = ref('')
 const detailTarget    = ref<{ url: string; label: string; kind: 'layer' | 'service' } | null>(null)
 const fieldSearch     = ref('')
 const librarySearch   = ref('')
+
+// ── Global layer index ────────────────────────────────────────────────────
+interface IndexRecord {
+  endpointName: string
+  endpointUrl:  string
+  serviceType:  string
+  serviceName:  string
+  serviceUrl:   string
+  layerId:      number | null
+  layerName:    string | null
+  layerUrl:     string | null
+  layerType:    string | null
+  geometryType: string | null
+}
+
+const esriIndex      = ref<{ _meta: any; layers: IndexRecord[] } | null>(null)
+const indexLoadState = ref<'idle' | 'loading' | 'done' | 'error'>('idle')
+
+const loadIndex = async () => {
+  if (indexLoadState.value !== 'idle') return
+  indexLoadState.value = 'loading'
+  try {
+    const res = await fetch('/esri-index.json')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    // Only treat as valid if it has been generated (totalRecords > 0 or generatedAt is set)
+    if (!data?._meta?.generatedAt) throw new Error('Index not yet generated')
+    esriIndex.value      = data
+    indexLoadState.value = 'done'
+  } catch {
+    indexLoadState.value = 'error'
+  }
+}
+
+watch(librarySearch, (val) => {
+  if (val.trim() && indexLoadState.value === 'idle') loadIndex()
+})
+
+const MAX_INDEX_RESULTS = 150
+
+const filteredIndexResults = computed((): IndexRecord[] => {
+  if (!librarySearch.value.trim() || indexLoadState.value !== 'done' || !esriIndex.value) return []
+  const q = librarySearch.value.toLowerCase()
+  const out: IndexRecord[] = []
+  for (const item of esriIndex.value.layers) {
+    if (out.length >= MAX_INDEX_RESULTS) break
+    if (
+      item.layerName?.toLowerCase().includes(q) ||
+      item.serviceName?.toLowerCase().includes(q) ||
+      item.endpointName?.toLowerCase().includes(q) ||
+      item.endpointUrl?.toLowerCase().includes(q) ||
+      item.serviceUrl?.toLowerCase().includes(q) ||
+      item.serviceType?.toLowerCase().includes(q) ||
+      item.layerType?.toLowerCase().includes(q)
+    ) out.push(item)
+  }
+  return out
+})
+
+const groupedIndexResults = computed(() => {
+  const map = new Map<string, IndexRecord[]>()
+  for (const item of filteredIndexResults.value) {
+    if (!map.has(item.endpointName)) map.set(item.endpointName, [])
+    map.get(item.endpointName)!.push(item)
+  }
+  return [...map.entries()].map(([endpointName, items]) => ({ endpointName, items }))
+})
+
+const indexKey = (item: IndexRecord) =>
+  item.layerId != null ? `idx:${item.serviceUrl}/${item.layerId}` : `idx:${item.serviceUrl}`
+
+// Navigate directly to a specific service+layer from an index result.
+// Builds a minimal synthetic tree — never fetches the full parent endpoint.
+const navigateFromIndex = async (item: IndexRecord, showOnMap = false) => {
+  // Reset state
+  tree.value              = []
+  activeLayer.value       = null
+  mapLayerKey.value       = null
+  layerStatus.value       = 'idle'
+  layerFeatureCount.value = null
+  downloadStatus.value    = 'idle'
+  downloadResult.value    = null
+  detailPanelOpen.value   = false
+  detailData.value        = null
+  exploreStatus.value     = 'loading'
+  clearMapLayer()
+
+  serviceUrl.value    = item.serviceUrl
+  librarySearch.value = ''
+
+  // Build a single-service tree from index metadata (no root crawl needed)
+  const svc: EsriService = {
+    name:          item.serviceName,
+    type:          item.serviceType,
+    url:           item.serviceUrl,
+    key:           `${item.serviceName}/${item.serviceType}`,
+    open:          false,
+    loadingLayers: false,
+    layers:        undefined,
+  }
+  tree.value          = [{ name: '/', open: true, services: [svc] }]
+  exploreStatus.value = 'done'
+  urlStatus.value     = 'ok'
+
+  // Fetch only this service's layers
+  await toggleService(svc)
+
+  if (item.layerId != null && svc.layers) {
+    const layer = svc.layers.find(l => l.id === item.layerId)
+    if (layer) {
+      selectLayer(svc, layer)
+      // Scroll the selected layer into view after DOM updates
+      await nextTick()
+      const el = treeSection.value?.querySelector(`[data-layer-key="${svc.key}/${layer.id}"]`)
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      if (showOnMap && QUERYABLE_TYPES.includes(svc.type)) {
+        mapLayerKey.value       = `${svc.key}/${layer.id}`
+        layerError.value        = ''
+        layerFeatureCount.value = null
+        await loadLayerPreview(true)
+      }
+    }
+  }
+}
+
+const selectFromIndex = (item: IndexRecord) => navigateFromIndex(item, false)
+
+const showFromIndex = async (item: IndexRecord) => {
+  // Toggle off if the same layer is already on the map
+  const sameUrl = activeLayer.value?.url === (item.layerUrl ?? item.serviceUrl)
+  if (sameUrl && mapLayerKey.value) {
+    clearMapLayer()
+    mapLayerKey.value       = null
+    layerStatus.value       = 'idle'
+    layerFeatureCount.value = null
+    return
+  }
+  await navigateFromIndex(item, true)
+}
 
 // ── Custom services (localStorage) ──────────────────────────────────────────────────
 const CUSTOM_KEY    = 'esri-custom-services'
@@ -2052,8 +2282,108 @@ onUnmounted(() => {
 }
 
 .er-library-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 0.5rem;
 }
+
+/* ── Index search results ─────────────────────────────────────────────────── */
+.er-idx-meta {
+  font-size: 0.63rem;
+  color: hsl(var(--muted-foreground));
+  opacity: 0.6;
+}
+
+.er-idx-section-hdr {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  margin: 0.75rem 0 0.3rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.er-idx-count {
+  font-size: 0.65rem;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  border-radius: 9999px;
+  padding: 0 0.35rem;
+  font-weight: 600;
+}
+
+.er-idx-loading {
+  font-size: 0.74rem;
+  color: hsl(var(--muted-foreground));
+  padding: 0.4rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.er-idx-group-hdr {
+  font-size: 0.64rem;
+  font-weight: 600;
+  color: hsl(var(--primary));
+  letter-spacing: 0.02em;
+  padding: 0.45rem 0 0.15rem;
+  opacity: 0.9;
+}
+
+.er-idx-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.er-idx-row:hover { background: hsl(var(--muted)); }
+.er-idx-row--active { background: hsl(var(--primary) / 0.10); }
+
+.er-idx-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.er-idx-layer-name {
+  font-size: 0.76rem;
+  color: hsl(var(--foreground));
+  font-weight: 450;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.er-idx-service {
+  font-size: 0.63rem;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.er-library-results {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.er-library-results::-webkit-scrollbar { width: 4px; }
+.er-library-results::-webkit-scrollbar-track { background: transparent; }
+.er-library-results::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 2px; }
 
 .er-library-list {
   flex: 1;
@@ -2176,6 +2506,56 @@ onUnmounted(() => {
   width: fit-content;
 }
 .er-back-library:hover { color: hsl(var(--foreground)); }
+
+/* ── Custom endpoint footer ─────────────────────────────────────────────── */
+.er-custom-footer {
+  flex-shrink: 0;
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.25);
+}
+
+.er-custom-footer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.55rem 1.25rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.71rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  font-family: inherit;
+  text-align: left;
+  transition: color 0.15s;
+}
+.er-custom-footer-toggle:hover { color: hsl(var(--foreground)); }
+
+.er-custom-footer-chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.er-custom-footer-chevron.open { transform: rotate(180deg); }
+
+.er-custom-footer-body {
+  padding: 0 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.er-footer-slide-enter-active,
+.er-footer-slide-leave-active {
+  transition: max-height 0.22s ease, opacity 0.18s ease;
+  overflow: hidden;
+  max-height: 160px;
+}
+.er-footer-slide-enter-from,
+.er-footer-slide-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
 
 /* ── Idle (kept for legacy) ─────────────────────────────────────────────── */
 .er-mono {
