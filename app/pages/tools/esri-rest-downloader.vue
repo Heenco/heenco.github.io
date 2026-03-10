@@ -139,6 +139,18 @@
                               <svg v-else-if="mapLayerKey === `${svc.key}/${layer.id}`" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                               <svg v-else xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                             </button>
+                            <button
+                              v-if="QUERYABLE_TYPES.includes(svc.type)"
+                              class="er-queue-btn"
+                              :class="{ 'er-queue-btn--active': isQueued(`${svc.key}/${layer.id}`), 'er-queue-btn--pending': pinnedLayers.some(l => l.id === queueLayerKey(`${svc.key}/${layer.id}`) && l.pending) }"
+                              :title="pinnedLayers.some(l => l.id === queueLayerKey(`${svc.key}/${layer.id}`) && l.pending) ? 'Fetching preview…' : isQueued(`${svc.key}/${layer.id}`) ? 'Remove from queue' : 'Add to download queue'"
+                              :disabled="pinnedLayers.some(l => l.id === queueLayerKey(`${svc.key}/${layer.id}`) && l.pending)"
+                              @click.stop="toggleQueue(svc, layer)"
+                            >
+                              <span v-if="pinnedLayers.some(l => l.id === queueLayerKey(`${svc.key}/${layer.id}`) && l.pending)" class="er-spinner er-spinner--sm">◌</span>
+                              <svg v-else-if="isQueued(`${svc.key}/${layer.id}`)" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                              <svg v-else xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </button>
                           </div>
                           <div v-if="!svc.layers?.length" class="er-empty">No queryable layers</div>
                         </template>
@@ -180,35 +192,63 @@
           </div>
 
           <!-- Download -->
-          <template v-if="layerStatus === 'loaded' || layerStatus === 'loading'">
+          <template v-if="layerStatus === 'loaded' || layerStatus === 'loading' || pinnedLayers.some(l => l.queued)">
             <div v-if="downloadStatus === 'loading'" class="er-msg er-msg-info er-msg-sm">
               <div>Paginating… {{ downloadFetched.toLocaleString() }} / {{ downloadTotal > 0 ? downloadTotal.toLocaleString() : '?' }} features in map view</div>
               <div style="margin-top:0.3rem">Converting to GeoParquet in browser…</div>
             </div>
-            <div v-if="downloadStatus === 'success'" class="er-msg er-msg-success er-msg-sm">
-              ✓ <strong>{{ downloadResult?.rows.toLocaleString() }}</strong> rows · {{ (downloadResult?.sizeBytes / 1e6).toFixed(2) }} MB
-              <div class="er-result-file">{{ downloadResult?.fileName }}</div>
+            <div v-if="queueDownloadStatus === 'loading'" class="er-msg er-msg-info er-msg-sm">
+              <div>Layer {{ queueDownloadIdx }} / {{ queueDownloadTotal }}: {{ queueDownloadCurrent }}</div>
+              <div style="margin-top:0.3rem">Paginating &amp; converting…</div>
             </div>
-            <div v-if="downloadStatus === 'error'" class="er-msg er-msg-error er-msg-sm">
+            <div v-if="(downloadStatus === 'success' || queueDownloadStatus === 'success')" class="er-msg er-msg-success er-msg-sm">
+              ✓ <strong>{{ downloadResult?.rows?.toLocaleString() ?? 'All layers' }}</strong> downloaded
+              <div v-if="downloadResult?.fileName" class="er-result-file">{{ downloadResult?.fileName }}</div>
+            </div>
+            <div v-if="downloadStatus === 'error' || queueDownloadStatus === 'error'" class="er-msg er-msg-error er-msg-sm">
               ✗ {{ downloadResult?.error }}
             </div>
             <div class="er-action-row">
-              <UButton
-                variant="primary"
-                style="flex: 1"
-                :disabled="downloadStatus === 'loading'"
-                @click="downloadGeoParquet"
-              >
-                <span v-if="downloadStatus === 'loading'" class="er-spinner">◌</span>
-                {{ downloadStatus === 'loading' ? 'Downloading…' : '↓ GeoParquet' }}
-              </UButton>
-              <UButton
-                v-if="downloadStatus === 'loading'"
-                variant="outline"
-                @click="cancelDownload"
-              >
-                Cancel
-              </UButton>
+              <!-- Batch download when queue has items -->
+              <template v-if="pinnedLayers.some(l => l.queued)">
+                <UButton
+                  variant="primary"
+                  style="flex: 1"
+                  :disabled="queueDownloadStatus === 'loading' || downloadStatus === 'loading'"
+                  @click="downloadQueue"
+                >
+                  <span v-if="queueDownloadStatus === 'loading'" class="er-spinner">◌</span>
+                  {{ queueDownloadStatus === 'loading'
+                    ? `Downloading ${queueDownloadIdx}/${queueDownloadTotal}…`
+                    : `↓ Download Queue (${pinnedLayers.filter(l => l.queued).length})` }}
+                </UButton>
+                <UButton
+                  v-if="queueDownloadStatus === 'loading'"
+                  variant="outline"
+                  @click="() => { queueCancelRequested = true }"
+                >
+                  Cancel
+                </UButton>
+              </template>
+              <!-- Single layer download when no queue -->
+              <template v-else>
+                <UButton
+                  variant="primary"
+                  style="flex: 1"
+                  :disabled="downloadStatus === 'loading'"
+                  @click="downloadGeoParquet"
+                >
+                  <span v-if="downloadStatus === 'loading'" class="er-spinner">◌</span>
+                  {{ downloadStatus === 'loading' ? 'Downloading…' : '↓ GeoParquet' }}
+                </UButton>
+                <UButton
+                  v-if="downloadStatus === 'loading'"
+                  variant="outline"
+                  @click="cancelDownload"
+                >
+                  Cancel
+                </UButton>
+              </template>
             </div>
           </template>
         </section>
@@ -292,6 +332,18 @@
                     <span v-if="mapLayerKey === indexKey(item) && layerStatus === 'loading'" class="er-spinner er-spinner--sm">◌</span>
                     <svg v-else-if="mapLayerKey === indexKey(item)" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                     <svg v-else xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  </button>
+                  <button
+                    v-if="QUERYABLE_TYPES.includes(item.serviceType) && item.layerId != null"
+                    class="er-queue-btn"
+                    :class="{ 'er-queue-btn--active': isQueuedIndex(item), 'er-queue-btn--pending': pinnedLayers.some(l => l.id === queueLayerKey(indexKey(item)) && l.pending) }"
+                    :title="pinnedLayers.some(l => l.id === queueLayerKey(indexKey(item)) && l.pending) ? 'Fetching preview…' : isQueuedIndex(item) ? 'Remove from queue' : 'Add to download queue'"
+                    :disabled="pinnedLayers.some(l => l.id === queueLayerKey(indexKey(item)) && l.pending)"
+                    @click.stop="toggleQueueFromIndex(item)"
+                  >
+                    <span v-if="pinnedLayers.some(l => l.id === queueLayerKey(indexKey(item)) && l.pending)" class="er-spinner er-spinner--sm">◌</span>
+                    <svg v-else-if="isQueuedIndex(item)" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <svg v-else xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   </button>
                 </div>
               </template>
@@ -380,6 +432,34 @@
       </aside>
     </transition>
 
+    <!-- ── Filename prompt modal ──────────────────────────────────────────── -->
+    <teleport to="body">
+      <transition name="er-fade">
+        <div v-if="showFilenamePrompt" class="er-modal-overlay" @click.self="cancelFilenamePrompt">
+          <div class="er-modal er-modal--sm">
+            <div class="er-modal-header">
+              <h2 class="er-modal-title">Name your download</h2>
+            </div>
+            <div class="er-modal-body">
+              <label class="er-label" style="display:block;margin-bottom:0.5rem">File name <span style="opacity:0.5;font-weight:400">(without extension)</span></label>
+              <input
+                v-model="filenameInput"
+                type="text"
+                class="er-bug-input"
+                placeholder="my_layers"
+                @keyup.enter="confirmFilename"
+                @keyup.escape="cancelFilenamePrompt"
+              />
+            </div>
+            <div class="er-modal-footer" style="justify-content:flex-end">
+              <UButton variant="outline" size="sm" @click="cancelFilenamePrompt">Cancel</UButton>
+              <UButton variant="primary" size="sm" :disabled="!filenameInput.trim()" @click="confirmFilename">Download</UButton>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
+
     <!-- ── Bug report modal ──────────────────────────────────────────── -->
     <teleport to="body">
       <transition name="er-fade">
@@ -437,6 +517,9 @@
             </div>
             <div class="er-modal-body er-disclaimer-body">
               <p class="er-disclaimer-p">This is a <strong>lightweight, browser-only</strong> ESRI REST service explorer and downloader. No data is sent to any server — everything is fetched and processed directly in your browser.</p>
+              <ul class="er-disclaimer-list">
+                <li>Only <strong>ESRI Feature Services</strong> are supported. Imagery, tile, and map services are not loaded.</li>
+              </ul>
               <div class="er-disclaimer-warn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;opacity:0.7"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 <span>Keep total records <strong>below 50,000</strong> per session. Loading very large datasets may cause your browser to slow down or crash. For <strong>large-scale data</strong> downloading or processing, contact us at <a href="mailto:hello@heenco.com.au" class="er-disclaimer-link">hello@heenco.com.au</a>.</span>
@@ -606,31 +689,50 @@
     <transition name="er-slide-right">
       <aside v-if="pinnedLayers.length > 0 && showLayers" class="er-layers-panel">
         <div class="er-layers-header">
-          <span style="font-size:0.75rem;font-weight:600;color:hsl(var(--foreground))">Layers</span>
+          <span style="font-size:0.75rem;font-weight:600;color:hsl(var(--foreground))">
+            Layers
+            <span v-if="pinnedLayers.some(l => l.pending)" class="er-queue-count er-queue-count--pending">{{ pinnedLayers.filter(l => l.pending).length }} fetching…</span>
+            <span v-else-if="pinnedLayers.some(l => l.queued)" class="er-queue-count">{{ pinnedLayers.filter(l => l.queued).length }} queued</span>
+          </span>
           <button class="er-chevron-btn" @click="showLayers = false" title="Collapse">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
         <div class="er-layer-list">
-          <div v-for="layer in pinnedLayers" :key="layer.id" class="er-layer-row-wrap">
+          <div
+            v-for="layer in pinnedLayers"
+            :key="layer.id"
+            class="er-layer-row-wrap"
+            :class="{
+              'er-layer-row-wrap--queued':   layer.queued,
+              'er-layer-row-wrap--pending':  layer.pending,
+              'er-layer-row-wrap--error':    !!layer.fetchError,
+            }"
+          >
             <div class="er-layer-row">
               <div
                 class="er-layer-swatch"
                 :style="{ color: layer.color }"
                 :title="layer.geomCategory"
               >
+                <span v-if="layer.pending" class="er-spinner er-spinner--sm">◌</span>
                 <!-- Polygon -->
-                <svg v-if="layer.geomCategory === 'polygon'" width="10" height="10" viewBox="0 0 10 10" fill="currentColor" stroke="none"><rect x="0.5" y="0.5" width="9" height="9" rx="1" fill="currentColor" fill-opacity="0.45"/><rect x="0.5" y="0.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                <svg v-else-if="layer.geomCategory === 'polygon'" width="10" height="10" viewBox="0 0 10 10" fill="currentColor" stroke="none"><rect x="0.5" y="0.5" width="9" height="9" rx="1" fill="currentColor" fill-opacity="0.45"/><rect x="0.5" y="0.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
                 <!-- Line -->
                 <svg v-else-if="layer.geomCategory === 'line'" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="9" x2="9" y2="1"/></svg>
                 <!-- Point -->
                 <svg v-else width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>
               </div>
               <div class="er-layer-info">
-                <span class="er-layer-name">{{ layer.label }}</span>
-                <span class="er-layer-meta">{{ layer.featureCount.toLocaleString() }} features</span>
+                <span class="er-layer-name" :class="{ 'er-layer-name--pending': layer.pending }">{{ layer.label }}</span>
+                <span class="er-layer-meta">
+                  <span v-if="layer.fetchError" class="er-queue-error">⚠ Queuing failed: {{ layer.fetchError }}</span>
+                  <span v-else-if="layer.pending" class="er-queue-pending-label">Connecting…</span>
+                  <span v-else-if="layer.queued" class="er-queue-badge">⬇ queued</span>
+                  <span v-else>{{ layer.featureCount.toLocaleString() }} features</span>
+                </span>
               </div>
-              <USwitch :modelValue="layer.visible" @update:modelValue="togglePinnedLayer(layer.id)" />
+              <USwitch v-if="!layer.pending && !layer.fetchError" :modelValue="layer.visible" @update:modelValue="togglePinnedLayer(layer.id)" />
               <button class="er-layer-btn er-layer-btn--remove" @click="removePinnedLayer(layer.id)" title="Remove">×</button>
             </div>
           </div>
@@ -643,6 +745,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import JSZip from 'jszip'
 import UButton from '~/components/ui/Button.vue'
 import USwitch from '~/components/ui/Switch.vue'
 import { ESRI_LIBRARY } from '~/config/esriLibrary'
@@ -888,6 +991,12 @@ interface PinnedLayer {
   mapLayerIds: string[]
   featureCount: number
   paint: ReturnType<typeof rendererToMapPaint>
+  // Queue fields
+  queued: boolean        // true = in download queue but not yet downloaded
+  queuedLayerUrl: string // ESRI layer URL to fetch on batch download
+  queuedLayerName: string
+  pending: boolean       // true = background fetch in progress
+  fetchError: string     // non-empty if the background fetch failed
 }
 let   pinCounter        = 0
 let   activeGeomCategory: 'polygon' | 'line' | 'point' = 'point'
@@ -895,6 +1004,38 @@ let   activeRenderer: any = null
 let   activeGeomType      = ''
 const pinnedLayers      = ref<PinnedLayer[]>([])
 const showLayers        = ref(true)
+
+// ── Queue download state ──────────────────────────────────────────────────────
+const queueDownloadStatus  = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
+const queueDownloadCurrent = ref('')   // name of layer currently being fetched
+const queueDownloadIdx     = ref(0)    // e.g. 1 of 3
+const queueDownloadTotal   = ref(0)
+let   queueCancelRequested = false as boolean
+
+// ── Filename prompt state ─────────────────────────────────────────────────────
+const showFilenamePrompt = ref(false)
+const filenameInput      = ref('')
+const filenamePromptCb   = ref<((name: string) => void) | null>(null)
+
+function promptFilename(defaultName: string): Promise<string | null> {
+  return new Promise(resolve => {
+    filenameInput.value   = defaultName
+    showFilenamePrompt.value = true
+    filenamePromptCb.value = (name: string) => {
+      showFilenamePrompt.value = false
+      filenamePromptCb.value   = null
+      resolve(name || null)
+    }
+  })
+}
+function confirmFilename() {
+  filenamePromptCb.value?.(filenameInput.value.trim())
+}
+function cancelFilenamePrompt() {
+  showFilenamePrompt.value = false
+  filenamePromptCb.value?.('')
+  filenamePromptCb.value = null
+}
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 const detailPanelOpen = ref(false)
@@ -993,6 +1134,8 @@ const navigateFromIndex = async (item: IndexRecord, showOnMap = false) => {
 
   serviceUrl.value    = item.serviceUrl
   librarySearch.value = ''
+  // Cancel the URL-verify debounce so it doesn't overwrite urlStatus with a CORS warning
+  if (verifyTimer) { clearTimeout(verifyTimer); verifyTimer = null }
 
   // Build a single-service tree from index metadata (no root crawl needed)
   const svc: EsriService = {
@@ -1362,6 +1505,169 @@ const selectLayer = (svc: EsriService, layer: EsriLayer) => {
 
   if (!QUERYABLE_TYPES.includes(svc.type)) {
     layerStatus.value = 'no-query'
+  }
+}
+
+// ── Queue helpers ─────────────────────────────────────────────────────────────
+const queueLayerKey = (layerKey: string) => `queue:${layerKey}`
+
+const isQueued = (layerKey: string) =>
+  pinnedLayers.value.some(l => l.queued && l.id === queueLayerKey(layerKey))
+
+const isQueuedIndex = (item: IndexRecord) =>
+  item.layerId != null && isQueued(indexKey(item))
+
+const addToQueue = async (
+  layerKey: string,
+  layerUrl: string,
+  layerName: string,
+  svcName: string,
+  svcType: string,
+  geometryType?: string,
+) => {
+  const sourceId = queueLayerKey(layerKey)
+  // Bail if already queued or pending
+  if (pinnedLayers.value.some(l => l.id === sourceId)) return
+  if (!map) return
+
+  const fallback = serviceTypeColor(svcType)
+
+  // Immediately add placeholder so the user sees it in the list right away
+  pinnedLayers.value.push({
+    id: sourceId,
+    label: 'Queuing…',
+    color: fallback,
+    visible: true,
+    geomCategory: 'point',
+    mapLayerIds: [],
+    featureCount: 0,
+    paint: rendererToMapPaint(null, '', fallback),
+    queued: false,
+    queuedLayerUrl: layerUrl,
+    queuedLayerName: layerName,
+    pending: true,
+    fetchError: '',
+  })
+  showLayers.value = true
+
+  const entry = pinnedLayers.value.find(l => l.id === sourceId)!
+
+  let geomType = geometryType ?? ''
+  let renderer: any = null
+  let features: any[] = []
+
+  try {
+    const bounds = map.getBounds()
+    const bboxGeom = JSON.stringify({
+      xmin: bounds.getWest(), ymin: bounds.getSouth(),
+      xmax: bounds.getEast(), ymax: bounds.getNorth(),
+    })
+    const [meta, firstRaw] = await Promise.all([
+      esriFetch(layerUrl, { f: 'json' }).catch(() => null),
+      esriFetch(`${layerUrl}/query`, {
+        where: '1=1', outSR: '4326', outFields: '*',
+        resultRecordCount: '1000', returnGeometry: 'true', f: 'json',
+        geometry: bboxGeom, geometryType: 'esriGeometryEnvelope', inSR: '4326',
+      }).catch(() => null),
+    ])
+
+    if (!meta && !firstRaw) throw new Error('Could not reach endpoint')
+
+    renderer = meta?.drawingInfo?.renderer ?? null
+    geomType = geomType || meta?.geometryType || firstRaw?.geometryType || ''
+
+    if (!geomType && firstRaw?.features?.length) {
+      const g = firstRaw.features.find((f: any) => f.geometry)?.geometry
+      if (g?.rings)  geomType = 'esriGeometryPolygon'
+      else if (g?.paths) geomType = 'esriGeometryPolyline'
+      else           geomType = 'esriGeometryPoint'
+    }
+
+    if (firstRaw?.features?.length) {
+      features = esriJsonToGeoJSON(firstRaw).features
+      // If nothing in view, try global for initial display
+      if (features.length === 0) {
+        const globalRaw = await esriFetch(`${layerUrl}/query`, {
+          where: '1=1', outSR: '4326', outFields: '*',
+          resultRecordCount: '1000', returnGeometry: 'true', f: 'json',
+        }).catch(() => null)
+        if (globalRaw?.features?.length) features = esriJsonToGeoJSON(globalRaw).features
+      }
+    }
+  } catch (err: any) {
+    entry.label = `${layerName} — ${svcName}`
+    entry.pending = false
+    entry.fetchError = err?.message || 'Network error'
+    return
+  }
+
+  const paint = rendererToMapPaint(renderer, geomType, fallback)
+  const geomCat: 'polygon' | 'line' | 'point' = geomType.includes('Polygon') || geomType.includes('Envelope')
+    ? 'polygon' : geomType.includes('Polyline') || geomType.includes('Line') ? 'line' : 'point'
+
+  const swatchColor = (() => {
+    const toRgb = (c?: number[]) => c ? `rgba(${c[0]},${c[1]},${c[2]},1)` : null
+    if (!renderer || renderer.type === 'simple')
+      return toRgb(renderer?.symbol?.color) ?? fallback
+    if (renderer.type === 'uniqueValue')
+      return toRgb(renderer.defaultSymbol?.color ?? renderer.uniqueValueInfos?.[0]?.symbol?.color) ?? fallback
+    if (renderer.type === 'classBreaks')
+      return toRgb(renderer.classBreakInfos?.[0]?.symbol?.color) ?? fallback
+    return fallback
+  })()
+
+  // Patch the placeholder with real data
+  entry.label        = `${layerName} — ${svcName}`
+  entry.color        = swatchColor
+  entry.geomCategory = geomCat
+  entry.paint        = paint
+  entry.featureCount = features.length
+  entry.queued       = true
+  entry.pending      = false
+
+  // Add map preview if we got features
+  if (features.length > 0 && !map.getSource(sourceId)) {
+    const geojson = { type: 'FeatureCollection' as const, features }
+    map.addSource(sourceId, { type: 'geojson', data: geojson })
+    const layerIds: string[] = []
+    if (geomCat === 'polygon') {
+      map.addLayer({ id: `${sourceId}-fill`, type: 'fill',   source: sourceId, paint: paint.fill })
+      map.addLayer({ id: `${sourceId}-line`, type: 'line',   source: sourceId, paint: paint.line })
+      layerIds.push(`${sourceId}-fill`, `${sourceId}-line`)
+    } else if (geomCat === 'line') {
+      map.addLayer({ id: `${sourceId}-line`, type: 'line',   source: sourceId, paint: paint.line })
+      layerIds.push(`${sourceId}-line`)
+    } else {
+      map.addLayer({ id: `${sourceId}-circle`, type: 'circle', source: sourceId, paint: paint.circle })
+      layerIds.push(`${sourceId}-circle`)
+    }
+    entry.mapLayerIds = layerIds
+  }
+}
+
+const toggleQueue = (svc: EsriService, layer: EsriLayer) => {
+  const key = `${svc.key}/${layer.id}`
+  if (isQueued(key)) {
+    removePinnedLayer(queueLayerKey(key))
+  } else {
+    addToQueue(key, `${svc.url}/${layer.id}`, layer.name, svc.name, svc.type, layer.geometryType)
+  }
+}
+
+const toggleQueueFromIndex = (item: IndexRecord) => {
+  if (item.layerId == null) return
+  const key = indexKey(item)
+  if (isQueuedIndex(item)) {
+    removePinnedLayer(queueLayerKey(key))
+  } else {
+    addToQueue(
+      key,
+      item.layerUrl ?? `${item.serviceUrl}/${item.layerId}`,
+      item.layerName ?? item.serviceName,
+      item.serviceName,
+      item.serviceType,
+      item.geometryType ?? undefined,
+    )
   }
 }
 
@@ -1866,6 +2172,105 @@ const getDuckDB = async () => {
 
 const cancelDownload = () => { cancelRequested = true }
 
+const downloadQueue = async () => {
+  const queued = pinnedLayers.value.filter(l => l.queued)
+  if (!queued.length) return
+
+  // Prompt for ZIP filename
+  const defaultName = `heenco_layers_${new Date().toISOString().slice(0,10)}`
+  const zipName = await promptFilename(defaultName)
+  if (!zipName) return
+
+  queueCancelRequested    = false
+  queueDownloadStatus.value  = 'loading'
+  queueDownloadTotal.value   = queued.length
+  queueDownloadIdx.value     = 0
+  downloadResult.value       = null
+
+  try {
+    const zip = new JSZip()
+    const conn = await getDuckDB()
+
+    const mapBounds = map?.getBounds()
+    const bboxGeom = mapBounds ? JSON.stringify({
+      xmin: mapBounds.getWest(), ymin: mapBounds.getSouth(),
+      xmax: mapBounds.getEast(), ymax: mapBounds.getNorth(),
+    }) : null
+
+    for (let i = 0; i < queued.length; i++) {
+      if (queueCancelRequested) throw new Error('Cancelled')
+      const entry = queued[i]!
+      queueDownloadIdx.value   = i + 1
+      queueDownloadCurrent.value = entry.queuedLayerName
+
+      // Paginate all features
+      const bboxParams: Record<string, string> = bboxGeom ? {
+        geometry: bboxGeom, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
+      } : {}
+      const PAGE = 1000
+      const allFeatures: any[] = []
+      let offset = 0
+      while (true) {
+        if (queueCancelRequested) throw new Error('Cancelled')
+        const page = await esriQueryAsGeoJSON(`${entry.queuedLayerUrl}/query`, {
+          where: '1=1', ...bboxParams, outSR: '4326', outFields: '*',
+          returnGeometry: 'true', resultRecordCount: String(PAGE), resultOffset: String(offset),
+        })
+        const features = page?.features ?? []
+        allFeatures.push(...features)
+        if (features.length < PAGE) break
+        offset += PAGE
+      }
+
+      if (!allFeatures.length) continue
+
+      const fc = { type: 'FeatureCollection', features: allFeatures }
+      const fcJson = JSON.stringify(fc)
+      const safeLayerName = entry.queuedLayerName.replace(/[^a-z0-9]/gi, '_')
+      const parquetName   = `${safeLayerName}.parquet`
+      const geojsonName   = `${safeLayerName}.geojson`
+      const encoder = new TextEncoder()
+      await _db.registerFileBuffer(geojsonName, encoder.encode(fcJson))
+
+      let sql: string
+      try {
+        await conn.query(`SELECT ST_GeomFromGeoJSON('{"type":"Point","coordinates":[0,0]}')`)
+        sql = `COPY (SELECT * FROM ST_Read('${geojsonName}')) TO '${parquetName}' (FORMAT PARQUET, COMPRESSION ZSTD)`
+      } catch {
+        sql = `COPY (SELECT f->>'geometry' AS geometry, f->>'properties' AS properties FROM (SELECT UNNEST(features) AS f FROM read_json_auto('${geojsonName}'))) TO '${parquetName}' (FORMAT PARQUET, COMPRESSION ZSTD)`
+      }
+      await conn.query(sql)
+      const buffer = await _db.copyFileToBuffer(parquetName)
+      zip.file(parquetName, buffer)
+
+      // Mark layer as downloaded (no longer queued)
+      entry.queued = false
+      entry.featureCount = allFeatures.length
+    }
+
+    if (queueCancelRequested) throw new Error('Cancelled')
+
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
+    const url = URL.createObjectURL(zipBlob)
+    const a   = document.createElement('a')
+    a.href = url; a.download = `${zipName}.zip`
+    document.body.appendChild(a); a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    downloadResult.value    = { rows: null, fileName: `${zipName}.zip` }
+    queueDownloadStatus.value = 'success'
+    setTimeout(() => { if (queueDownloadStatus.value === 'success') queueDownloadStatus.value = 'idle' }, 4000)
+  } catch (e: any) {
+    if (e?.message === 'Cancelled') {
+      queueDownloadStatus.value = 'idle'
+    } else {
+      downloadResult.value      = { error: e?.message ?? 'Unknown error' }
+      queueDownloadStatus.value = 'error'
+    }
+  }
+}
+
 const downloadGeoParquet = async () => {
   if (!activeLayer.value) return
   cancelRequested     = false
@@ -2013,6 +2418,11 @@ const downloadGeoParquet = async () => {
           mapLayerIds: [],
           featureCount: allFeatures.length,
           paint,
+          queued: false,
+          queuedLayerUrl: activeLayer.value?.url ?? '',
+          queuedLayerName: activeLayer.value?.layerName ?? '',
+          pending: false,
+          fetchError: '',
         }
 
         map.addSource(sourceId, { type: 'geojson', data: geojson })
@@ -3004,6 +3414,14 @@ onUnmounted(() => {
   color: hsl(var(--foreground));
   line-height: 1.55;
 }
+.er-disclaimer-list {
+  margin: 0.4rem 0 0 1rem;
+  padding: 0;
+  font-size: 0.82rem;
+  color: hsl(var(--foreground));
+  line-height: 1.55;
+  list-style: disc;
+}
 .er-disclaimer-warn {
   display: flex;
   align-items: flex-start;
@@ -3671,4 +4089,79 @@ onUnmounted(() => {
 .er-layer-btn:hover { color: hsl(var(--foreground)); background: hsl(var(--border)); }
 .er-layer-btn--remove:hover { color: #ef4444; background: rgba(239,68,68,0.12); }
 
+/* ── Queue button (+) ───────────────────────────────────────────────────── */
+.er-queue-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; flex-shrink: 0;
+  background: none; border: 1px solid transparent;
+  border-radius: 4px; cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.er-queue-btn:hover {
+  color: #10b981; border-color: #10b981;
+  background: rgba(16,185,129,0.08);
+}
+.er-queue-btn--active {
+  color: #10b981; border-color: #10b981;
+  background: rgba(16,185,129,0.12);
+}
+.er-queue-btn--active:hover {
+  color: #ef4444; border-color: #ef4444;
+  background: rgba(239,68,68,0.1);
+}
+.er-queue-btn--pending {
+  opacity: 0.6; cursor: default;
+}
+
+/* ── Queued layer row ───────────────────────────────────────────────────── */
+.er-layer-row-wrap--queued {
+  border: 1px dashed hsl(var(--border));
+  border-radius: 6px;
+  padding: 0.1rem 0.25rem;
+  background: rgba(16,185,129,0.04);
+}
+.er-layer-row-wrap--pending {
+  border: 1px dashed hsl(var(--border));
+  border-radius: 6px;
+  padding: 0.1rem 0.25rem;
+  opacity: 0.7;
+}
+.er-layer-row-wrap--error {
+  border: 1px solid rgba(249,115,22,0.5);
+  border-radius: 6px;
+  padding: 0.1rem 0.25rem;
+  background: rgba(249,115,22,0.05);
+}
+.er-layer-name--pending {
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+}
+.er-queue-pending-label {
+  font-size: 0.68rem;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+.er-queue-error {
+  font-size: 0.68rem;
+  color: #f97316;
+  font-weight: 500;
+}
+.er-queue-badge {
+  font-size: 0.58rem; font-weight: 600; letter-spacing: 0.04em;
+  color: #10b981; text-transform: uppercase;
+}
+.er-queue-count {
+  display: inline-block; margin-left: 0.4rem;
+  font-size: 0.65rem; font-weight: 500; color: #10b981;
+  background: rgba(16,185,129,0.12); border-radius: 10px;
+  padding: 0.05rem 0.4rem;
+}
+.er-queue-count--pending {
+  color: hsl(var(--muted-foreground));
+  background: rgba(128,128,128,0.12);
+}
+
+/* ── Filename prompt modal (slim variant) ───────────────────────────────── */
+.er-modal--sm { max-width: 380px; }
 </style>

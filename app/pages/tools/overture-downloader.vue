@@ -150,39 +150,18 @@
           </div>
         </section>
 
-        <!-- Extract -->
+        <!-- Queue -->
         <section class="od-section">
           <div v-if="validationError" class="od-msg od-msg-warn">{{ validationError }}</div>
+
           <UButton
             variant="primary"
-            :disabled="status === 'loading' || !!validationError"
+            :disabled="!!validationError"
             style="width: 100%"
-            @click="extract"
+            @click="addToQueue"
           >
-            <span v-if="status === 'loading'" class="od-spinner">◌</span>
-            {{ status === 'loading' ? 'Extracting…' : 'Extract to Parquet' }}
+            + Add to Queue
           </UButton>
-
-          <div v-if="status === 'loading'" class="od-msg od-msg-info">
-            DuckDB WASM querying Overture S3 directly in your browser.<br>
-            Large bboxes may take a few minutes.
-          </div>
-          <div v-if="result && status === 'success'" class="od-msg od-msg-success">
-            <div class="od-result-row">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><polyline points="20 6 9 17 4 12"/></svg>
-              <span>{{ result.rows.toLocaleString() }} rows saved</span>
-            </div>
-            <div class="od-result-row od-result-secondary">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <span class="od-result-file-group">
-                <span class="od-result-file">{{ result.fileName }}</span>
-                <span class="od-result-size">{{ (result.sizeBytes / 1e6).toFixed(2) }} MB</span>
-              </span>
-            </div>
-          </div>
-          <div v-if="result && status === 'error'" class="od-msg od-msg-error">
-            ✗ {{ result.error }}
-          </div>
         </section>
 
         </div>
@@ -196,6 +175,66 @@
         </div>
       </aside>
     </transition>
+
+    <!-- ── Filename prompt modal ─────────────────────────────────────── -->
+    <teleport to="body">
+      <transition name="od-fade">
+        <div v-if="showFilenamePrompt" class="od-modal-overlay" @click.self="cancelFilenamePrompt">
+          <div class="od-modal od-modal--sm">
+            <div class="od-modal-header">
+              <h2 class="od-modal-title">Name your ZIP file</h2>
+              <button class="od-chevron-btn" @click="cancelFilenamePrompt" title="Cancel">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="od-modal-body">
+              <input
+                v-model="filenameInput"
+                type="text"
+                class="od-bug-input"
+                placeholder="my-overture-data"
+                @keyup.enter="confirmFilename"
+                style="margin-top:0"
+              />
+            </div>
+            <div class="od-modal-footer">
+              <UButton variant="outline" size="sm" @click="cancelFilenamePrompt">Cancel</UButton>
+              <UButton variant="primary" size="sm" :disabled="!filenameInput.trim()" @click="confirmFilename">Download</UButton>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
+
+    <!-- ── Filename prompt modal ──────────────────────────────────────── -->
+    <teleport to="body">
+      <transition name="od-fade">
+        <div v-if="showFilenamePrompt" class="od-modal-overlay" @click.self="cancelFilenamePrompt">
+          <div class="od-modal od-modal--sm">
+            <div class="od-modal-header">
+              <h2 class="od-modal-title">Name your ZIP file</h2>
+              <button class="od-chevron-btn" @click="cancelFilenamePrompt" title="Cancel">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="od-modal-body">
+              <input
+                v-model="filenameInput"
+                type="text"
+                class="od-bug-input"
+                placeholder="my-overture-data"
+                @keyup.enter="confirmFilename"
+                style="margin-top:0"
+              />
+            </div>
+            <div class="od-modal-footer">
+              <UButton variant="outline" size="sm" @click="cancelFilenamePrompt">Cancel</UButton>
+              <UButton variant="primary" size="sm" :disabled="!filenameInput.trim()" @click="confirmFilename">Download</UButton>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
 
     <!-- ── Bug report modal ──────────────────────────────────────────── -->
     <teleport to="body">
@@ -252,7 +291,7 @@
 
     <!-- ── Layers panel (right) ──────────────────────────────────── -->
     <transition name="od-slide-right">
-      <aside v-if="mapLayers.length > 0 && showLayers" class="od-layers-panel">
+      <aside v-if="(mapLayers.length > 0 || queue.length > 0) && showLayers" class="od-layers-panel">
         <div class="od-layers-header">
           <span class="od-label">Layers</span>
           <button class="od-chevron-btn" @click="showLayers = false" title="Collapse layers">
@@ -260,6 +299,45 @@
           </button>
         </div>
         <div class="od-layer-list">
+
+          <!-- Extracting queue entries -->
+          <div
+            v-for="entry in queue.filter(e => e.status === 'extracting' || e.status === 'error')"
+            :key="entry.id"
+            class="od-layer-row-wrap"
+          >
+            <div class="od-layer-row od-layer-row--pending"
+              :class="{ 'od-layer-row--error': entry.status === 'error' }">
+              <div class="od-layer-swatch od-layer-swatch--pending">
+                <span v-if="entry.status === 'extracting'" class="od-spinner od-spinner--sm">&#9676;</span>
+                <span v-else class="od-layer-swatch--error-icon">&#9888;</span>
+              </div>
+              <div class="od-layer-info">
+                <span class="od-layer-name">{{ entry.label }}</span>
+                <template v-if="entry.status === 'extracting'">
+                  <div class="od-progress-bar-wrap">
+                    <div
+                      class="od-progress-bar-fill"
+                      :style="{ width: Math.min(95, entry.elapsedMs / entry.estimatedMs * 100).toFixed(1) + '%' }"
+                    />
+                  </div>
+                  <span class="od-layer-meta od-progress-meta">
+                    {{ Math.round(entry.elapsedMs / 1000) }}s
+                    &nbsp;&middot;&nbsp;
+                    ~{{ Math.round(entry.estimatedMs / 1000) }}s est.
+                  </span>
+                </template>
+                <span v-else class="od-layer-meta od-layer-meta--error">{{ entry.error }}</span>
+              </div>
+              <button
+                class="od-layer-btn od-layer-btn--remove"
+                @click="removeQueueEntry(entry.id)"
+                title="Remove"
+              >×</button>
+            </div>
+          </div>
+
+          <!-- Done map layers -->
           <div v-for="layer in mapLayers" :key="layer.id" class="od-layer-row-wrap">
             <div class="od-layer-row">
               <button
@@ -301,7 +379,22 @@
               </label>
             </div>
           </div>
+
         </div>
+
+        <!-- Extract All — shown when ≥1 queue entry is done -->
+        <div v-if="queue.some(e => e.status === 'done')" class="od-layers-footer">
+          <UButton
+            variant="primary"
+            style="width: 100%"
+            :disabled="extractAllRunning"
+            @click="extractAll"
+          >
+            <span v-if="extractAllRunning" class="od-spinner">&#9676;</span>
+            {{ extractAllRunning ? 'Zipping…' : `↓ Extract All (${queue.filter(e => e.status === 'done').length} ready)` }}
+          </UButton>
+        </div>
+
       </aside>
     </transition>
 
@@ -457,7 +550,6 @@ const THEMES = [
   { id: 'buildings',      label: 'Buildings' },
   { id: 'transportation', label: 'Transportation' },
   { id: 'addresses',      label: 'Addresses' },
-  { id: 'base',           label: 'Base (Land)' },
 ]
 
 // ── Bbox ────────────────────────────────────────────────────────────────────
@@ -555,10 +647,9 @@ const validationError = computed(() => {
 
 // ── DuckDB WASM (browser-side, lazy init) ───────────────────────────────────
 let _db: any = null
-let _conn: any = null
 
 const getDuckDB = async () => {
-  if (_conn) return _conn
+  if (_db) return _db
 
   // Dynamic import so WASM is only loaded when first needed
   const duckdb = await import('@duckdb/duckdb-wasm')
@@ -574,13 +665,19 @@ const getDuckDB = async () => {
   const logger = new duckdb.VoidLogger()
   _db = new duckdb.AsyncDuckDB(logger, worker)
   await _db.instantiate(bundle.mainModule, bundle.pthreadWorker)
-  _conn = await _db.connect()
 
   URL.revokeObjectURL(workerUrl)
+  return _db
+}
 
-  // Load httpfs so we can read from S3
-  await _conn.query(`LOAD httpfs; SET s3_region='us-west-2';`)
-  return _conn
+// Open a fresh connection with httpfs + spatial pre-loaded.
+// Each extraction gets its own connection so concurrent queries don't collide.
+const openConn = async () => {
+  const db   = await getDuckDB()
+  const conn = await db.connect()
+  await conn.query(`LOAD httpfs; SET s3_region='us-west-2';`)
+  try { await conn.query(`LOAD spatial;`) } catch { /* unavailable in some envs */ }
+  return conn
 }
 
 // ── Layer Map state ─────────────────────────────────────────────────────────
@@ -595,12 +692,110 @@ interface MapLayer {
   mapLayerIds: string[]
 }
 
+interface QueueEntry {
+  id: string
+  label: string
+  theme: string
+  category: string | null
+  bbox: { min_lon: number; min_lat: number; max_lon: number; max_lat: number }
+  release: string
+  status: 'extracting' | 'done' | 'error'
+  rows: number
+  error: string
+  buffer: Uint8Array | null
+  fileName: string
+  startedAt: number        // Date.now() when queued
+  estimatedMs: number      // rough estimate in ms
+  elapsedMs: number        // updated by global tick
+}
+
 let   layerCounter = 0
 let   popup: any = null
 const mapLayers         = ref<MapLayer[]>([])
 const showPanel         = ref(true)
 const showLayers        = ref(true)
 const colorPickerOpenId = ref<string | null>(null)
+
+// ── Queue state ──────────────────────────────────────────────────────────────
+
+// Empirical feature density per km² (conservative estimates)
+const THEME_DENSITY: Record<string, number> = {
+  places:         0.08,
+  buildings:      6,
+  transportation: 10,
+  addresses:      8,
+}
+const DUCKDB_RPS: Record<string, number> = {
+  places:         800,  // small point rows, minimal geometry
+  buildings:      120,  // polygon WKB geometry — large rows
+  transportation: 80,   // complex linestring geometry — largest rows
+  addresses:      300,  // wide rows but point geometry
+}
+const MIN_EST_MS = 8_000 // minimum estimate — httpfs init alone takes ~8s
+
+function bboxAreaKm2(b: { min_lon: number; min_lat: number; max_lon: number; max_lat: number }) {
+  const R   = 6371
+  const lat = (b.min_lat + b.max_lat) / 2 * Math.PI / 180
+  const dLon = Math.abs(b.max_lon - b.min_lon) * Math.PI / 180
+  const dLat = Math.abs(b.max_lat - b.min_lat) * Math.PI / 180
+  return R * R * dLat * Math.cos(lat) * dLon
+}
+
+function estimateMs(theme: string, bboxKm2: number): number {
+  const density = THEME_DENSITY[theme] ?? 1
+  const rps     = DUCKDB_RPS[theme] ?? 200
+  return Math.max(MIN_EST_MS, (bboxKm2 * density / rps) * 1000)
+}
+
+let _tickInterval: ReturnType<typeof setInterval> | null = null
+
+function startTickIfNeeded() {
+  if (_tickInterval) return
+  _tickInterval = setInterval(() => {
+    const now = Date.now()
+    let anyExtracting = false
+    for (const e of queue.value) {
+      if (e.status === 'extracting') {
+        e.elapsedMs = now - e.startedAt
+        // If we've blown past the estimate, extend it so the bar keeps moving
+        if (e.elapsedMs >= e.estimatedMs * 0.92) {
+          e.estimatedMs = e.elapsedMs * 1.5
+        }
+        anyExtracting = true
+      }
+    }
+    if (!anyExtracting) {
+      clearInterval(_tickInterval!)
+      _tickInterval = null
+    }
+  }, 500)
+}
+
+const queue              = ref<QueueEntry[]>([])
+const extractAllRunning  = ref(false)
+const showFilenamePrompt = ref(false)
+const filenameInput      = ref('')
+const filenamePromptCb   = ref<((name: string) => void) | null>(null)
+
+function promptFilename(defaultName: string): Promise<string | null> {
+  return new Promise(resolve => {
+    filenameInput.value = defaultName
+    filenamePromptCb.value = resolve
+    showFilenamePrompt.value = true
+  })
+}
+function confirmFilename() {
+  const name = filenameInput.value.trim()
+  if (!name) return
+  showFilenamePrompt.value = false
+  filenamePromptCb.value?.(name)
+  filenamePromptCb.value = null
+}
+function cancelFilenamePrompt() {
+  showFilenamePrompt.value = false
+  filenamePromptCb.value?.(null as any)
+  filenamePromptCb.value = null
+}
 
 // ── Bug report ───────────────────────────────────────────────────────────
 const showBugModal   = ref(false)
@@ -715,9 +910,8 @@ const buildGeoJSONForMap = async (fileName: string, theme: string, cat: string |
     return { geojson: { type: 'FeatureCollection', features }, displayRows: features.length }
   }
 
-  // Polygon / Line — needs spatial extension for WKB → GeoJSON
+  // Polygon / Line — requires spatial extension for WKB → GeoJSON
   try {
-    await conn.query('INSTALL spatial; LOAD spatial;')
     const tbl = await conn.query(
       `SELECT CAST(id AS VARCHAR) AS id, ST_AsGeoJSON(geometry) AS _geom FROM read_parquet('${fileName}') LIMIT 5000`
     )
@@ -826,6 +1020,9 @@ const removeMapLayer = (id: string) => {
     if (map.getSource(id)) map.removeSource(id)
   }
   mapLayers.value.splice(idx, 1)
+  // Also drop the queue entry so Extract All count stays accurate
+  const qi = queue.value.findIndex(e => e.id === id)
+  if (qi !== -1) queue.value.splice(qi, 1)
 }
 
 const toggleMapLayer = (id: string) => {
@@ -852,10 +1049,7 @@ const changeLayerColor = (id: string, newColor: string, close = false) => {
   }
 }
 
-// ── Extract ─────────────────────────────────────────────────────────────────
-const status = ref<null | 'loading' | 'success' | 'error'>(null)
-const result = ref<any>(null)
-
+// ── Queue / Extract ─────────────────────────────────────────────────────────
 const THEME_S3: Record<string, string> = {
   places:         'theme=places/type=place',
   buildings:      'theme=buildings/type=building',
@@ -864,113 +1058,168 @@ const THEME_S3: Record<string, string> = {
   base:           'theme=base/type=land',
 }
 
-const extract = async () => {
+function removeQueueEntry(id: string) {
+  const idx = queue.value.findIndex(e => e.id === id)
+  if (idx === -1) return
+  const entry = queue.value[idx]
+  // Also remove the corresponding map layer if it was added
+  const ml = mapLayers.value.find(l => l.id === entry.id)
+  if (ml) removeMapLayer(ml.id)
+  queue.value.splice(idx, 1)
+}
+
+function clearDoneQueue() {
+  queue.value
+    .filter(e => e.status === 'done')
+    .forEach(e => {
+      const ml = mapLayers.value.find(l => l.id === e.id)
+      if (ml) removeMapLayer(ml.id)
+    })
+  queue.value = queue.value.filter(e => e.status !== 'done')
+}
+
+async function addToQueue() {
   if (validationError.value) return
-  status.value = 'loading'
-  result.value = null
 
-  try {
-    const conn = await getDuckDB()
-    const { min_lon, min_lat, max_lon, max_lat } = bbox.value
-    const rel   = release.value
-    const theme = selectedTheme.value
-    const cat   = selectedTheme.value === 'places' ? selectedCategory.value : null
-    const slug  = cat ? `${theme}_${cat}` : theme
-    const fileName = `${slug}_${Date.now()}.parquet`
+  const theme = selectedTheme.value
+  const cat   = theme === 'places' ? selectedCategory.value : null
+  const rel   = release.value
+  const bboxSnap = { ...bbox.value }
+  const themeLabel = THEMES.find(t => t.id === theme)?.label ?? theme
+  const label = cat ? `${themeLabel} — ${cat.replace(/_/g, ' ')}` : themeLabel
+  const slug  = cat ? `${theme}_${cat}` : theme
+  const fileName = `${slug}_${Date.now()}.parquet`
+  const entryId  = `od-data-${layerCounter++}`
 
-    const s3 = `s3://overturemaps-us-west-2/release/${rel}/${THEME_S3[theme]}/**/*.parquet`
+  const entry: QueueEntry = {
+    id: entryId, label, theme, category: cat,
+    bbox: bboxSnap, release: rel,
+    status: 'extracting', rows: 0, error: '', buffer: null, fileName,
+    startedAt: Date.now(),
+    estimatedMs: estimateMs(theme, bboxAreaKm2(bboxSnap)),
+    elapsedMs: 0,
+  }
+  queue.value.push(entry)
+  showLayers.value = true
+  startTickIfNeeded()
 
-    const bboxWhere = `bbox.xmin < ${max_lon} AND bbox.xmax > ${min_lon} AND bbox.ymin < ${max_lat} AND bbox.ymax > ${min_lat}`
+  // Fire-and-forget background extraction
+  void (async () => {
+    let conn: any = null
+    try {
+      conn = await openConn()
+      const { min_lon, min_lat, max_lon, max_lat } = bboxSnap
+      const s3   = `s3://overturemaps-us-west-2/release/${rel}/${THEME_S3[theme]}/**/*.parquet`
+      const bboxWhere = `bbox.xmin < ${max_lon} AND bbox.xmax > ${min_lon} AND bbox.ymin < ${max_lat} AND bbox.ymax > ${min_lat}`
 
-    // Use all descendant ids so selecting a parent category (e.g. "eat_and_drink")
-    // returns all children (restaurant, cafe, bar, …) not just exact matches
-    let catWhere = ''
-    if (selectedTheme.value === 'places' && selectedPath.value.length > 0) {
-      const ids = getAllDescendantIds(selectedPath.value)
-      const inList = ids.map(id => `'${id}'`).join(', ')
-      catWhere = `categories.primary IN (${inList}) AND `
+      let catWhere = ''
+      if (theme === 'places' && selectedPath.value.length > 0) {
+        const ids    = getAllDescendantIds(selectedPath.value)
+        const inList = ids.map(id => `'${id}'`).join(', ')
+        catWhere     = `categories.primary IN (${inList}) AND `
+      }
+
+      const isPoint   = theme === 'places' || theme === 'addresses'
+      const geoSelect = theme === 'places'
+        ? `id,
+           names.primary AS name,
+           categories.primary AS category,
+           categories.alternate[1] AS category_alt,
+           confidence,
+           websites[1] AS website,
+           phones[1] AS phone,
+           emails[1] AS email,
+           addresses[1].freeform AS address,
+           addresses[1].locality AS city,
+           addresses[1].region AS state,
+           addresses[1].postcode AS postcode,
+           addresses[1].country AS country,
+           brand.names.primary AS brand,
+           operating_status,
+           bbox.xmin AS longitude,
+           bbox.ymin AS latitude,
+           sources[1].dataset AS source,
+           geometry`
+        : isPoint
+          ? `* EXCLUDE (geometry), bbox.xmin AS longitude, bbox.ymin AS latitude, geometry`
+          : `* EXCLUDE (geometry), geometry`
+
+      const sql = `
+        COPY (
+          SELECT ${geoSelect}
+          FROM read_parquet('${s3}')
+          WHERE ${catWhere}${bboxWhere}
+        ) TO '${fileName}' (FORMAT PARQUET, COMPRESSION ZSTD)
+      `
+      await conn.query(sql)
+
+      const buffer = await _db.copyFileToBuffer(fileName)
+      const rows   = Number(
+        (await conn.query(`SELECT COUNT(*) AS cnt FROM read_parquet('${fileName}')`))
+          .getChildAt(0).get(0)
+      )
+
+      const e = queue.value.find(e => e.id === entryId)
+      if (e) {
+        if (rows === 0) {
+          e.error = 'No features found in this bbox'
+          e.status = 'error'
+          return
+        }
+        e.buffer = buffer; e.rows = rows; e.status = 'done'
+      }
+
+      // Always register in MapLayer list with actual row count so it's visible
+      const layerColor = theme === 'places'
+        ? LAYER_PALETTE[(layerCounter - 1) % LAYER_PALETTE.length]
+        : getThemeColor(theme)
+      const ml: MapLayer = {
+        id: entryId, label, theme, category: cat,
+        color: layerColor, rows, visible: true, mapLayerIds: [],
+      }
+      mapLayers.value.push(ml)
+      showLayers.value = true
+
+      // Separately try to build the map preview (non-fatal if spatial extension unavailable)
+      try {
+        const { geojson, displayRows } = await buildGeoJSONForMap(fileName, theme, cat, conn, layerColor)
+        if (geojson && displayRows > 0) {
+          ml.mapLayerIds = addLayerToMap(ml, geojson)
+        }
+      } catch { /* map preview is non-fatal */ }
+    } catch (err: any) {
+      const e = queue.value.find(e => e.id === entryId)
+      if (e) { e.error = err?.message ?? 'Unknown error'; e.status = 'error' }
+    } finally {
+      try { await conn?.close() } catch { /* ignore */ }
     }
-    // For point features (places/addresses) derive lon/lat from bbox struct — no spatial ext needed
-    const isPoint   = theme === 'places' || theme === 'addresses'
-    // For places: flatten the most useful nested fields into top-level columns
-    // names.primary → name, websites[1] → website, phones[1] → phone,
-    // categories.primary → category, addresses[1].freeform → address
-    const geoSelect = theme === 'places'
-      ? `id,
-         names.primary AS name,
-         categories.primary AS category,
-         categories.alternate[1] AS category_alt,
-         confidence,
-         websites[1] AS website,
-         phones[1] AS phone,
-         emails[1] AS email,
-         addresses[1].freeform AS address,
-         addresses[1].locality AS city,
-         addresses[1].region AS state,
-         addresses[1].postcode AS postcode,
-         addresses[1].country AS country,
-         brand.names.primary AS brand,
-         operating_status,
-         bbox.xmin AS longitude,
-         bbox.ymin AS latitude,
-         sources[1].dataset AS source,
-         geometry`
-      : isPoint
-        ? `* EXCLUDE (geometry), bbox.xmin AS longitude, bbox.ymin AS latitude, geometry`
-        : `* EXCLUDE (geometry), geometry`
+  })()
+}
 
-    const sql = `
-      COPY (
-        SELECT ${geoSelect}
-        FROM read_parquet('${s3}')
-        WHERE ${catWhere}${bboxWhere}
-      ) TO '${fileName}' (FORMAT PARQUET, COMPRESSION ZSTD)
-    `
+async function extractAll() {
+  const ready = queue.value.filter(e => e.status === 'done' && e.buffer)
+  if (!ready.length) return
 
-    await conn.query(sql)
+  const defaultName = `overture_${Date.now()}`
+  const name = await promptFilename(defaultName)
+  if (!name) return
 
-    const buffer  = await _db.copyFileToBuffer(fileName)
-    const rows    = Number((await conn.query(`SELECT COUNT(*) AS cnt FROM read_parquet('${fileName}')`)).getChildAt(0).get(0))
-
-    // Trigger browser download
-    const blob = new Blob([buffer], { type: 'application/octet-stream' })
+  extractAllRunning.value = true
+  try {
+    const JSZip = (await import('jszip')).default
+    const zip   = new JSZip()
+    for (const e of ready) zip.file(e.fileName, e.buffer!)
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
-    a.href = url
-    a.download = fileName
+    a.href     = url
+    a.download = name.endsWith('.zip') ? name : `${name}.zip`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-
-    result.value = { rows, fileName, sizeBytes: buffer.byteLength }
-    status.value = 'success'
-
-    // Build in-browser GeoJSON from the parquet and add to map (max 5 000 features)
-    try {
-      const sourceId   = `od-data-${layerCounter}`
-      // Sequential colour: places cycle through LAYER_PALETTE; other themes use fixed theme colour
-      const layerColor = theme === 'places'
-        ? LAYER_PALETTE[layerCounter % LAYER_PALETTE.length]
-        : getThemeColor(theme)
-      layerCounter++
-      const { geojson, displayRows } = await buildGeoJSONForMap(fileName, theme, cat, conn, layerColor)
-      if (geojson && displayRows > 0) {
-        const themeLabel = THEMES.find(t => t.id === theme)?.label ?? theme
-        const label = cat ? `${themeLabel} — ${cat.replace(/_/g, ' ')}` : themeLabel
-        const entry: MapLayer = {
-          id: sourceId, label, theme, category: cat,
-          color: layerColor,
-          rows: displayRows, visible: true, mapLayerIds: [],
-        }
-        mapLayers.value.push(entry)
-        entry.mapLayerIds = addLayerToMap(entry, geojson)
-        showLayers.value = true
-      }
-    } catch { /* map preview failures are non-fatal */ }
-  } catch (err: any) {
-    result.value = { error: err?.message ?? 'Unknown error' }
-    status.value = 'error'
+  } finally {
+    extractAllRunning.value = false
   }
 }
 
@@ -1817,4 +2066,130 @@ onUnmounted(() => {
 .od-fade-leave-to {
   opacity: 0;
 }
+
+/* ── Layers panel footer (Extract All) ──────────────────────────────────── */
+.od-layers-footer {
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+/* ── Pending / error layer rows ──────────────────────────────────────────── */
+.od-layer-row--pending {
+  opacity: 0.75;
+}
+.od-layer-row--pending.od-layer-row--error {
+  opacity: 1;
+}
+.od-layer-swatch--pending {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #93c5fd;
+}
+.od-layer-swatch--error-icon { color: #fdba74; }
+.od-layer-meta--error { color: #fdba74; }
+.od-spinner--sm { font-size: 10px; animation: od-spin 1.2s linear infinite; }
+
+/* ── Progress bar ─────────────────────────────────────────────────────────────────── */
+.od-progress-bar-wrap {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 4px 0 2px;
+}
+.od-progress-bar-fill {
+  height: 100%;
+  background: #60a5fa;
+  border-radius: 2px;
+  transition: width 0.45s ease;
+  min-width: 4px;
+}
+.od-progress-meta {
+  opacity: 0.6;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+/* ── Queue UI (kept for reference, no longer used in left panel) ──────────── */
+.od-section--queue { gap: 10px; }
+
+.od-queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.od-queue-clear {
+  font-size: 11px;
+  color: var(--color-text-muted, #888);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.od-queue-clear:hover { color: var(--color-text, #ccc); }
+
+.od-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.od-queue-entry {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 8px 10px;
+  border-left: 3px solid rgba(255,255,255,0.15);
+  transition: border-color 0.2s;
+}
+.od-queue-entry--extracting {
+  border-left-color: #60a5fa;
+  opacity: 0.85;
+  animation: od-pulse 1.8s ease-in-out infinite;
+}
+.od-queue-entry--done    { border-left-color: #4ade80; }
+.od-queue-entry--error   { border-left-color: #f97316; }
+
+@keyframes od-pulse {
+  0%, 100% { opacity: 0.85; }
+  50%       { opacity: 0.55; }
+}
+
+.od-queue-entry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.od-queue-entry-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text, #e5e7eb);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.od-queue-entry-meta {
+  margin-top: 4px;
+  font-size: 11px;
+}
+.od-queue-entry-status { display: flex; align-items: center; gap: 4px; }
+.od-queue-entry-status--extracting { color: #93c5fd; }
+.od-queue-entry-status--done       { color: #86efac; }
+.od-queue-entry-status--error      { color: #fdba74; }
+
+.od-modal--sm { max-width: 380px; }
 </style>
