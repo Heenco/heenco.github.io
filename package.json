@@ -9,7 +9,10 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "fetch-map": "node scripts/fetch-map.js",
-    "index:esri": "node scripts/gen-esri-index.mjs"
+    "index:esri": "node scripts/gen-esri-index.mjs",
+    "record": "playwright test",
+    "record:overture": "playwright test tests/demo-overture.spec.ts",
+    "record:esri": "playwright test tests/demo-esri.spec.ts"
   },
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.33.1-dev20.0",
@@ -25,7 +28,9 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@nuxtjs/tailwindcss": "^6.14.0",
+    "@playwright/test": "^1.58.2",
     "@shadcn/ui": "^0.0.4",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",

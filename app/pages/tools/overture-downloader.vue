@@ -1083,6 +1083,7 @@ async function addToQueue() {
 
   const theme = selectedTheme.value
   const cat   = theme === 'places' ? selectedCategory.value : null
+  const pathSnap = [...selectedPath.value]  // snapshot before any reactive changes
   const rel   = release.value
   const bboxSnap = { ...bbox.value }
   const themeLabel = THEMES.find(t => t.id === theme)?.label ?? theme
@@ -1113,8 +1114,8 @@ async function addToQueue() {
       const bboxWhere = `bbox.xmin < ${max_lon} AND bbox.xmax > ${min_lon} AND bbox.ymin < ${max_lat} AND bbox.ymax > ${min_lat}`
 
       let catWhere = ''
-      if (theme === 'places' && selectedPath.value.length > 0) {
-        const ids    = getAllDescendantIds(selectedPath.value)
+      if (theme === 'places' && pathSnap.length > 0) {
+        const ids    = getAllDescendantIds(pathSnap)
         const inList = ids.map(id => `'${id}'`).join(', ')
         catWhere     = `categories.primary IN (${inList}) AND `
       }

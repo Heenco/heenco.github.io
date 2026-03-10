@@ -164,8 +164,8 @@
         </section>
 
         <!-- Active layer info + download -->
-        <section v-if="activeLayer" class="er-section er-section--action">
-          <div class="er-active-info">
+        <section v-if="activeLayer || pinnedLayers.some(l => l.queued) || queueDownloadStatus !== 'idle' || downloadStatus !== 'idle'" class="er-section er-section--action">
+          <div v-if="activeLayer" class="er-active-info">
             <div class="er-active-name">{{ activeLayer.layerName }}</div>
             <div class="er-active-meta">{{ activeLayer.svcName }} · {{ activeLayer.svcType }}</div>
             <div v-if="layerFeatureCount !== null" class="er-active-count">
@@ -184,7 +184,7 @@
             </div>
           </div>
 
-          <div v-if="layerStatus === 'no-query'" class="er-msg er-msg-warn er-msg-sm">
+          <div v-if="activeLayer && layerStatus === 'no-query'" class="er-msg er-msg-warn er-msg-sm">
             Preview not supported for {{ activeLayer.svcType }}
           </div>
           <div v-if="layerStatus === 'error'" class="er-msg er-msg-error er-msg-sm">
@@ -192,7 +192,7 @@
           </div>
 
           <!-- Download -->
-          <template v-if="layerStatus === 'loaded' || layerStatus === 'loading' || pinnedLayers.some(l => l.queued)">
+          <template v-if="layerStatus === 'loaded' || layerStatus === 'loading' || pinnedLayers.some(l => l.queued) || queueDownloadStatus !== 'idle' || downloadStatus !== 'idle'">
             <div v-if="downloadStatus === 'loading'" class="er-msg er-msg-info er-msg-sm">
               <div>Paginating… {{ downloadFetched.toLocaleString() }} / {{ downloadTotal > 0 ? downloadTotal.toLocaleString() : '?' }} features in map view</div>
               <div style="margin-top:0.3rem">Converting to GeoParquet in browser…</div>
