@@ -17,6 +17,8 @@ export default defineNuxtConfig({
     componentDir: './app/components/ui'
   },
   runtimeConfig: {
+    perplexityApiKey: process.env.PERPLEXITY_API_KEY,
+    groqApiKey: process.env.GROQ_API_KEY,
     public: {
       mapboxToken: process.env.NUXT_PUBLIC_MAPBOX_TOKEN,
       upstashRedisUrl: process.env.UPSTASH_REDIS_REST_URL,
