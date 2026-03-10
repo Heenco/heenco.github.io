@@ -69,22 +69,25 @@ const posts = {
 
       <h2>The Existing Options Fall Short</h2>
 
-      <p>The standard approach is to query Overture's cloud-hosted Parquet files using DuckDB or Athena. That works well if you're comfortable writing SQL against remote S3 buckets, know the schema, and have the right environment set up. For most people (planners, analysts, small teams) it's a significant barrier.</p>
+      <p>The standard approach is to query Overture's cloud-hosted Parquet files using DuckDB or Athena. That works well if you're comfortable writing SQL against remote S3 buckets, know the schema, and have the right environment set up. For most people — planners, analysts, small teams — it's a significant barrier.</p>
 
-      <p>The official <code>overturemaps</code> CLI tool helps, but it requires Python, a configured environment, and familiarity with the category taxonomy. There's no visual feedback, no map preview, and output options are limited.</p>
+      <p>The official <code>overturemaps</code> CLI tool helps, but it requires Python, a configured environment, and familiarity with the category taxonomy. There's no visual feedback, no map preview, and you can only pull one thing at a time.</p>
 
       <h2>What We Built</h2>
 
-      <p>The <strong>Overture Downloader</strong> is a browser-based tool that lets you draw a bounding box on a map, pick a category, and download the result as GeoParquet. No setup required.</p>
+      <p>The <strong>Overture Downloader</strong> is a fully browser-based tool — no install, no backend, no account. DuckDB runs directly in the browser as a WASM module, querying Overture's cloud-hosted Parquet files on the client. Draw a bounding box, choose a theme and category, and queue it up.</p>
 
       <ul>
         <li>Visual bounding box selection on an interactive map</li>
-        <li>Browse the full Overture category taxonomy</li>
-        <li>Set the release version you want to query</li>
-        <li>Download directly to GeoParquet, ready for QGIS, GeoPandas, or DuckDB</li>
+        <li>Browse the full Overture category taxonomy across Places, Buildings, Transportation, and Addresses</li>
+        <li>Add multiple extractions to a queue — each runs concurrently in the background with its own DuckDB connection</li>
+        <li>Live progress bar per extraction, with elapsed time and an adaptive estimate that adjusts as the query runs</li>
+        <li>Results appear as interactive map layers — toggle visibility, change colour, preview your data before downloading</li>
+        <li>Download individual layers as GeoParquet, or use <em>Extract All</em> to bundle everything into a single ZIP</li>
+        <li>Set the Overture release version you want to query</li>
       </ul>
 
-      <p>It handles the DuckDB query, schema mapping, and file packaging on the server side. You just get the file.</p>
+      <p>Everything happens in your browser. The files go straight to your machine, ready for QGIS, GeoPandas, or DuckDB.</p>
 
       <p><a href="/tools/overture-downloader">Try the Overture Downloader →</a></p>
     `,
@@ -205,16 +208,16 @@ const posts = {
 
       <h2>What We Built</h2>
 
-      <p>The <strong>ESRI REST Downloader</strong> lets you paste any ArcGIS REST service URL, explore the full service tree, inspect layer metadata, and export any layer to GeoParquet. All in the browser.</p>
+      <p>The <strong>ESRI REST Downloader</strong> lets you paste any ArcGIS REST service URL, explore the full service tree, inspect layer metadata, and add layers to a download queue. All in the browser — no install, no backend.</p>
 
       <ul>
         <li>Paste a service URL and auto-discover all folders, services, and layers</li>
         <li>Browse service metadata and field schemas inline</li>
-        <li>Filter and select the layers you need</li>
-        <li>Export to GeoParquet with automatic pagination handled server-side</li>
+        <li>Add multiple layers to a queue — each fetches in the background with live progress while you keep browsing</li>
+        <li>Automatic pagination is handled client-side, so large layers come through in full without any manual batching</li>
+        <li>Completed layers appear in a panel — toggle visibility, review the data, then download individually or use <em>Extract All</em> to bundle everything into a single ZIP of GeoParquet files</li>
+        <li>CORS restrictions are detected upfront and surfaced clearly, before you waste time queuing a layer that can't be reached</li>
       </ul>
-
-      <p>It detects CORS restrictions upfront and surfaces them clearly, so you're not left debugging silent failures.</p>
 
       <p><a href="/tools/esri-rest-downloader">Try the ESRI REST Downloader →</a></p>
     `,
