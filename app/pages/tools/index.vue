@@ -16,10 +16,13 @@
     <section class="tools-grid-section">
       <div class="container">
         <div class="tools-grid">
-          <NuxtLink
+          <component
+            :is="tool.external ? 'a' : NuxtLink"
             v-for="tool in tools"
             :key="tool.slug"
-            :to="tool.route"
+            v-bind="tool.external
+              ? { href: tool.route, target: '_blank', rel: 'noopener noreferrer' }
+              : { to: tool.route }"
             class="tool-card"
           >
             <div class="tool-card__icon-wrap">
@@ -34,12 +37,16 @@
             <div class="tool-card__footer">
               <span v-for="tag in tool.tags" :key="tag" class="tool-card__tag">{{ tag }}</span>
               <span class="tool-card__arrow">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <!-- external: diagonal arrow; internal: right arrow -->
+                <svg v-if="tool.external" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M7 17L17 7M7 7h10v10"/>
+                </svg>
+                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M5 12h14M12 5l7 7-7 7"/>
                 </svg>
               </span>
             </div>
-          </NuxtLink>
+          </component>
         </div>
       </div>
     </section>
@@ -48,6 +55,7 @@
 </template>
 
 <script setup>
+const NuxtLink = resolveComponent('NuxtLink')
 const tools = [
   {
     slug: 'overture-downloader',
@@ -82,6 +90,31 @@ const tools = [
       <ellipse cx="12" cy="5" rx="9" ry="3"/>
       <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
       <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+    </svg>`,
+  },
+  {
+    slug: 'data-explorer',
+    route: '/tools/data-explorer',
+    name: 'Data Explorer',
+    description: 'Explore attributes and generate charts from Parquet, GeoParquet, CSV, or GeoJSON files.',
+    tags: ['Parquet', 'CSV', 'Charts'],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <path d="M3 9h18M9 21V9"/>
+      <path d="M7 15h2M7 18h4M13 13h4M13 16h2"/>
+    </svg>`,
+  },
+  {
+    slug: 'kepler-viewer',
+    route: 'https://kepler.heenco.com',
+    external: true,
+    name: 'Kepler Viewer',
+    description: 'Visualise large geospatial datasets interactively with Kepler.gl — supports GeoJSON, CSV, and more.',
+    tags: ['Kepler.gl', 'Visualisation', 'Maps'],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M12 3a14.5 14.5 0 0 1 0 18M12 3a14.5 14.5 0 0 0 0 18"/>
+      <path d="M3 9h18M3 15h18"/>
     </svg>`,
   },
 ]
