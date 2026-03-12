@@ -687,7 +687,7 @@
 
     <!-- ── Layers panel (right side) ────────────────────────────────────────── -->
     <transition name="er-slide-right">
-      <aside v-if="pinnedLayers.length > 0 && showLayers" class="er-layers-panel">
+      <aside v-if="pinnedLayers.length > 0 && showLayers" class="er-layers-panel" :ref="(el) => setLayersPanelRef(el as HTMLElement | null)">
         <div class="er-layers-header">
           <span style="font-size:0.75rem;font-weight:600;color:hsl(var(--foreground))">
             Layers
@@ -740,6 +740,37 @@
       </aside>
     </transition>
 
+    <SpatialIntelligencePanel
+      :point="spatialSearchPoint"
+      :layers="spatialIntelligenceLayers"
+      :layersPanelBottom="layersPanelBottom"
+      :layersFabVisible="pinnedLayers.length > 0 && !showLayers"
+      :bufferMeters="spatialBufferMeters"
+      :hidden="reachOpen || financialOpen"
+      @bufferChange="onSIBufferChange"
+      @openChange="siOpen = $event"
+    />
+
+    <ReachPanel
+      :point="spatialSearchPoint"
+      :mapboxToken="(config.public as any).mapboxToken ?? ''"
+      :siBotPx="siFabBotPx"
+      :hidden="siOpen || financialOpen"
+      @isochroneGeoJSON="onIsochroneGeoJSON"
+      @poisUpdate="onPoisUpdate"
+      @catVisibility="onCatVisibility"
+      @openChange="reachOpen = $event"
+    />
+
+    <FinancialPanel
+      :point="spatialSearchPoint"
+      :reachBotPx="reachFabBotPx"
+      :layersPanelBottom="layersPanelBottom"
+      :layersFabVisible="pinnedLayers.length > 0 && !showLayers"
+      :hidden="siOpen || reachOpen"
+      @openChange="financialOpen = $event"
+    />
+
   </div>
 </template>
 
@@ -748,6 +779,9 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import JSZip from 'jszip'
 import UButton from '~/components/ui/Button.vue'
 import USwitch from '~/components/ui/Switch.vue'
+import SpatialIntelligencePanel from '~/components/tools/spatial/SpatialIntelligencePanel.vue'
+import ReachPanel from '~/components/tools/spatial/ReachPanel.vue'
+import FinancialPanel from '~/components/tools/spatial/FinancialPanel.vue'
 import { ESRI_LIBRARY } from '~/config/esriLibrary'
 
 const config = useRuntimeConfig()
@@ -823,6 +857,7 @@ const showCustomEndpoint  = ref(true)
 const geoSearchWrapperRef = ref<HTMLElement | null>(null)
 const treeSection         = ref<HTMLElement | null>(null)
 const geoSearchQuery      = ref('')
+const geoSearchPoint      = ref<{ lng: number; lat: number; label?: string } | null>(null)
 const geoSuggestions      = ref<any[]>([])
 const showGeoSuggestions  = ref(false)
 let   geoSearchDebounce: ReturnType<typeof setTimeout> | null = null
@@ -852,6 +887,9 @@ function placeGeoMarker(lng: number, lat: number) {
     map.addLayer({ id: 'er-geo-marker-halo', type: 'circle', source: 'er-geo-marker', paint: { 'circle-radius': 11, 'circle-color': '#ffffff', 'circle-opacity': 0.9 } })
     map.addLayer({ id: 'er-geo-marker-dot',  type: 'circle', source: 'er-geo-marker', paint: { 'circle-radius': 5,  'circle-color': '#f97316', 'circle-opacity': 1 } })
   }
+  // Always keep marker on top of all data layers
+  map.moveLayer('er-geo-marker-halo')
+  map.moveLayer('er-geo-marker-dot')
 }
 
 function clearGeoMarker() {
@@ -861,11 +899,93 @@ function clearGeoMarker() {
   if (map.getSource('er-geo-marker'))     map.removeSource('er-geo-marker')
 }
 
+function bufferCircleGeojson(lng: number, lat: number, meters: number) {
+  const steps = 64
+  const lf = Math.max(Math.cos((lat * Math.PI) / 180), 0.2)
+  const dx = meters / (111320 * lf)
+  const dy = meters / 110540
+  const coords: [number, number][] = []
+  for (let i = 0; i <= steps; i++) {
+    const a = (i / steps) * Math.PI * 2
+    coords.push([lng + dx * Math.cos(a), lat + dy * Math.sin(a)])
+  }
+  return { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} }] }
+}
+
+function placeBufferCircle(lng: number, lat: number, meters: number) {
+  if (!map) return
+  // ── Circle fill + stroke ──
+  const geojson = bufferCircleGeojson(lng, lat, meters)
+  if (map.getSource('er-geo-buffer')) {
+    map.getSource('er-geo-buffer').setData(geojson)
+  } else {
+    map.addSource('er-geo-buffer', { type: 'geojson', data: geojson })
+    map.addLayer({ id: 'er-geo-buffer-fill',   type: 'fill', source: 'er-geo-buffer', paint: { 'fill-color': '#f97316', 'fill-opacity': 0.08 } })
+    map.addLayer({ id: 'er-geo-buffer-stroke', type: 'line', source: 'er-geo-buffer', paint: { 'line-color': '#f97316', 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.75 } })
+  }
+  // ── Drag handle at east edge ──
+  const lf = Math.max(Math.cos((lat * Math.PI) / 180), 0.2)
+  const dx = meters / (111320 * lf)
+  const handleGj = { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lng + dx, lat] }, properties: {} }] }
+  if (map.getSource('er-geo-buffer-handle')) {
+    map.getSource('er-geo-buffer-handle').setData(handleGj)
+  } else {
+    map.addSource('er-geo-buffer-handle', { type: 'geojson', data: handleGj })
+    map.addLayer({ id: 'er-geo-buffer-handle', type: 'circle', source: 'er-geo-buffer-handle', paint: { 'circle-radius': 7, 'circle-color': '#ffffff', 'circle-stroke-width': 2, 'circle-stroke-color': '#f97316', 'circle-opacity': 0.95 } })
+    if (!_bufferHandlersInit) { _bufferHandlersInit = true; initBufferHandleDrag() }
+  }
+  // ── Layer order: fill < stroke < handle < geo-marker ──
+  const haloExists = map.getLayer('er-geo-marker-halo')
+  map.moveLayer('er-geo-buffer-fill',   haloExists ? 'er-geo-marker-halo' : undefined)
+  map.moveLayer('er-geo-buffer-stroke', haloExists ? 'er-geo-marker-halo' : undefined)
+  map.moveLayer('er-geo-buffer-handle') // always on very top (under marker dots handled by moveLayer order)
+  if (haloExists) { map.moveLayer('er-geo-marker-halo'); map.moveLayer('er-geo-marker-dot') }
+}
+
+function initBufferHandleDrag() {
+  if (!map) return
+  map.on('mouseenter', 'er-geo-buffer-handle', () => { map.getCanvas().style.cursor = 'ew-resize' })
+  map.on('mouseleave', 'er-geo-buffer-handle', () => { if (!_bufferDragging) map.getCanvas().style.cursor = '' })
+  map.on('mousedown', 'er-geo-buffer-handle', (e: any) => {
+    e.preventDefault()
+    _bufferDragging = true
+    const pt = spatialSearchPoint.value
+    if (!pt) return
+    const center = { lng: pt.lng, lat: pt.lat }
+    map.getCanvas().style.cursor = 'ew-resize'
+    const onMove = (me: any) => {
+      const lf = Math.max(Math.cos((center.lat * Math.PI) / 180), 0.2)
+      const dlng = (me.lngLat.lng - center.lng) * 111320 * lf
+      const dlat = (me.lngLat.lat - center.lat) * 110540
+      spatialBufferMeters.value = Math.max(10, Math.round(Math.sqrt(dlng ** 2 + dlat ** 2)))
+    }
+    const onUp = () => {
+      _bufferDragging = false
+      map.getCanvas().style.cursor = ''
+      map.off('mousemove', onMove)
+    }
+    map.on('mousemove', onMove)
+    map.once('mouseup', onUp)
+  })
+}
+
+function clearBufferCircle() {
+  if (!map) return
+  if (map.getLayer('er-geo-buffer-handle')) map.removeLayer('er-geo-buffer-handle')
+  if (map.getSource('er-geo-buffer-handle')) map.removeSource('er-geo-buffer-handle')
+  if (map.getLayer('er-geo-buffer-stroke')) map.removeLayer('er-geo-buffer-stroke')
+  if (map.getLayer('er-geo-buffer-fill'))   map.removeLayer('er-geo-buffer-fill')
+  if (map.getSource('er-geo-buffer'))       map.removeSource('er-geo-buffer')
+  _bufferHandlersInit = false
+}
+
 function clearGeoSearch() {
   geoSearchQuery.value = ''
   geoSuggestions.value = []
   showGeoSuggestions.value = false
+  geoSearchPoint.value = null
   clearGeoMarker()
+  clearBufferCircle()
 }
 
 function selectGeoSuggestion(s: any) {
@@ -873,6 +993,7 @@ function selectGeoSuggestion(s: any) {
   geoSuggestions.value = []
   showGeoSuggestions.value = false
   const [lng, lat] = s.center
+  geoSearchPoint.value = { lng, lat, label: s.place_name }
   placeGeoMarker(lng, lat)
   map?.flyTo({ center: [lng, lat], zoom: 10, essential: true })
 }
@@ -887,6 +1008,7 @@ async function searchGeoLocation() {
     const data = await res.json()
     if (data.features?.length) {
       const [lng, lat] = data.features[0].center
+      geoSearchPoint.value = { lng, lat, label: data.features[0].place_name ?? geoSearchQuery.value }
       placeGeoMarker(lng, lat)
       map?.flyTo({ center: [lng, lat], zoom: 10, essential: true })
     }
@@ -1005,7 +1127,149 @@ let   activeGeomType      = ''
 const pinnedLayers      = ref<PinnedLayer[]>([])
 const showLayers        = ref(true)
 
-// ── Queue download state ──────────────────────────────────────────────────────
+const spatialSearchPoint = computed(() => geoSearchPoint.value)
+const spatialBufferMeters = ref(25)
+const spatialIntelligenceLayers = computed(() =>
+  pinnedLayers.value.map(l => ({
+    id: l.id, label: l.label, queuedLayerUrl: l.queuedLayerUrl,
+    pending: l.pending, fetchError: l.fetchError,
+  }))
+)
+
+function onSIBufferChange(v: number) { spatialBufferMeters.value = v }
+
+// ── Layers panel ResizeObserver (feeds SI FAB position) ───────────────────────
+const layersPanelBottom = ref(0)
+let _panelRO: ResizeObserver | null = null
+let _bufferDragging = false
+let _bufferHandlersInit = false
+
+// ── SI FAB bottom pixel (feeds Reach FAB position) ───────────────────────────
+// Mirror SpatialIntelligencePanel's fabTop computed + 40px FAB height
+const siOpen       = ref(false)
+const reachOpen    = ref(false)
+const financialOpen = ref(false)
+const siFabBotPx = computed(() => {
+  if (layersPanelBottom.value) return layersPanelBottom.value + 8 + 40
+  if (pinnedLayers.value.length > 0 && !showLayers.value) return 16 + 48 + 40
+  return 16 + 40
+})
+const reachFabBotPx = computed(() => siFabBotPx.value + 8 + 40)
+
+function setLayersPanelRef(el: HTMLElement | null) {
+  _panelRO?.disconnect()
+  _panelRO = null
+  if (!el) { layersPanelBottom.value = 0; return }
+  const update = () => { layersPanelBottom.value = el.offsetTop + el.offsetHeight }
+  update()
+  _panelRO = new ResizeObserver(update)
+  _panelRO.observe(el)
+}
+
+// Redraw buffer circle whenever search point or radius changes
+watch([spatialSearchPoint, spatialBufferMeters], ([pt, buf]) => {
+  if (!pt || typeof buf !== 'number' || buf <= 0) { clearBufferCircle(); return }
+  placeBufferCircle(pt.lng, pt.lat, buf)
+})
+
+// ── Isochrone map layer ───────────────────────────────────────────────────────
+const reachPoiCatIds = ref<string[]>([])
+
+function onIsochroneGeoJSON(geojson: any | null) {
+  if (!map) return
+  if (!geojson) {
+    if (map.getLayer('er-iso-fill'))   map.removeLayer('er-iso-fill')
+    if (map.getLayer('er-iso-stroke')) map.removeLayer('er-iso-stroke')
+    if (map.getSource('er-iso'))       map.removeSource('er-iso')
+    return
+  }
+  if (map.getSource('er-iso')) {
+    map.getSource('er-iso').setData(geojson)
+  } else {
+    map.addSource('er-iso', { type: 'geojson', data: geojson })
+    map.addLayer({ id: 'er-iso-fill',   type: 'fill', source: 'er-iso', paint: { 'fill-color': '#6366f1', 'fill-opacity': 0.07 } }, map.getLayer('er-geo-buffer-fill') ? 'er-geo-buffer-fill' : undefined)
+    map.addLayer({ id: 'er-iso-stroke', type: 'line', source: 'er-iso', paint: { 'line-color': '#6366f1', 'line-width': 1.5, 'line-opacity': 0.6 } }, map.getLayer('er-geo-buffer-fill') ? 'er-geo-buffer-fill' : undefined)
+  }
+}
+
+let reachPopup: any = null
+
+function onPoisUpdate(layers: Record<string, { color: string; geojson: any }> | null) {
+  if (!map) return
+  const ml = (window as any).maplibregl
+  // Tear down old popup
+  if (reachPopup) { reachPopup.remove(); reachPopup = null }
+  // Remove previous POI layers/sources
+  for (const catId of reachPoiCatIds.value) {
+    map.off('mouseenter', `reach-poi-${catId}`, _reachEnter)
+    map.off('mouseleave', `reach-poi-${catId}`, _reachLeave)
+    if (map.getLayer(`reach-poi-${catId}`)) map.removeLayer(`reach-poi-${catId}`)
+    if (map.getSource(`reach-poi-${catId}`)) map.removeSource(`reach-poi-${catId}`)
+  }
+  reachPoiCatIds.value = []
+  if (!layers) return
+  if (ml) reachPopup = new ml.Popup({ closeButton: false, closeOnClick: false, className: 'reach-poi-popup', maxWidth: '260px' })
+  for (const [catId, { color, geojson }] of Object.entries(layers)) {
+    map.addSource(`reach-poi-${catId}`, { type: 'geojson', data: geojson })
+    map.addLayer({
+      id: `reach-poi-${catId}`,
+      type: 'circle',
+      source: `reach-poi-${catId}`,
+      paint: {
+        'circle-radius': 3,
+        'circle-color': color,
+        'circle-opacity': 0.9,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': '#fff',
+      },
+    })
+    map.on('mouseenter', `reach-poi-${catId}`, _reachEnter)
+    map.on('mouseleave', `reach-poi-${catId}`, _reachLeave)
+    reachPoiCatIds.value.push(catId)
+  }
+}
+
+function _reachEnter(e: any) {
+  if (!map || !reachPopup) return
+  map.getCanvas().style.cursor = 'pointer'
+  const f = e.features?.[0]
+  if (!f) return
+  const p = f.properties
+  const dist = p.dist >= 1000 ? `${(p.dist / 1000).toFixed(1)} km` : `${Math.round(p.dist)} m`
+  const website = p.website ? (() => { try { return `<a href="${p.website}" target="_blank" rel="noopener" class="rpp-link">${new URL(p.website).hostname}</a>` } catch { return `<a href="${p.website}" target="_blank" rel="noopener" class="rpp-link">${p.website}</a>` } })() : ''
+  const phone   = p.phone   ? `<span class="rpp-row"><span class="rpp-icon">📞</span>${p.phone}</span>` : ''
+  const hours   = p.hours   ? `<span class="rpp-row"><span class="rpp-icon">🕐</span>${p.hours}</span>` : ''
+  const cuisine = p.cuisine ? `<span class="rpp-tag">${p.cuisine.split(';')[0]}</span>` : ''
+  reachPopup.setLngLat(f.geometry.coordinates)
+    .setHTML(`
+      <div class="rpp" style="--cat:${p.color}">
+        <div class="rpp-header">
+          <span class="rpp-dot"></span>
+          <span class="rpp-name">${p.name}</span>
+        </div>
+        <div class="rpp-meta">
+          <span class="rpp-dist">${dist} away</span>
+          ${cuisine}
+        </div>
+        ${phone}${hours}
+        ${website}
+      </div>
+    `).addTo(map)
+}
+
+function _reachLeave() {
+  if (!map || !reachPopup) return
+  map.getCanvas().style.cursor = ''
+  reachPopup.remove()
+}
+
+function onCatVisibility(enabled: string[]) {
+  if (!map) return
+  for (const catId of reachPoiCatIds.value) {
+    const vis = enabled.includes(catId) ? 'visible' : 'none'
+    if (map.getLayer(`reach-poi-${catId}`)) map.setLayoutProperty(`reach-poi-${catId}`, 'visibility', vis)
+  }
+}
 const queueDownloadStatus  = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
 const queueDownloadCurrent = ref('')   // name of layer currently being fetched
 const queueDownloadIdx     = ref(0)    // e.g. 1 of 3
@@ -2495,6 +2759,60 @@ onUnmounted(() => {
   document.removeEventListener('click', handleGeoClickOutside)
 })
 </script>
+
+<style>
+/* ── Reach POI hover popup (unscoped — rendered by MapLibre outside Vue) ── */
+.reach-poi-popup .maplibregl-popup-content {
+  padding: 0;
+  background: transparent;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+}
+.reach-poi-popup .maplibregl-popup-tip { display: none; }
+.rpp {
+  background: #16161e;
+  border: 1px solid color-mix(in srgb, var(--cat) 40%, transparent);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  display: flex; flex-direction: column; gap: 0.3rem;
+  min-width: 140px; font-family: inherit;
+}
+.rpp-header {
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.rpp-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--cat);
+  box-shadow: 0 0 6px var(--cat);
+}
+.rpp-name {
+  font-size: 0.75rem; font-weight: 600; color: #f1f1f3;
+  line-height: 1.2;
+}
+.rpp-meta {
+  display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+}
+.rpp-dist {
+  font-size: 0.62rem; color: #9ca3af;
+}
+.rpp-tag {
+  font-size: 0.58rem; font-weight: 600; letter-spacing: 0.03em; text-transform: capitalize;
+  padding: 0.06rem 0.35rem; border-radius: 20px;
+  background: color-mix(in srgb, var(--cat) 18%, transparent);
+  color: var(--cat);
+}
+.rpp-row {
+  display: flex; align-items: center; gap: 0.3rem;
+  font-size: 0.62rem; color: #9ca3af;
+}
+.rpp-icon { font-size: 0.65rem; }
+.rpp-link {
+  font-size: 0.62rem; color: var(--cat); text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--cat) 40%, transparent);
+  transition: opacity 0.15s;
+}
+.rpp-link:hover { opacity: 0.75; }
+</style>
 
 <style scoped>
 /* ── Layout ──────────────────────────────────────────────────────────────── */
