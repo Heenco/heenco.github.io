@@ -1,0 +1,47 @@
+1
+00:00:00,000 --> 00:00:4.4,000
+Hook, get global building data for your thesis study area, free in 60 seconds.
+
+2
+00:00:4.88,000 --> 00:00:13.54,000
+Platform, TikTok 9x16, duration 45s, audience, researcher student, section 1, Hook 0-Seok-005.
+
+3
+00:00:14.06,000 --> 00:00:18.94,000
+If you need spatial data for your research and you don't have an ArcGIS license, listen up.
+
+4
+00:00:19.56,000 --> 00:00:23.02,000
+Section 2, what it is, 0-0-5-0-15.
+
+5
+00:00:24.24,000 --> 00:00:28.72,000
+Overture Maps is a free, open data set backed by Amazon, Microsoft, and Meta.
+
+6
+00:00:28.72,000 --> 00:00:37.46,000
+Global buildings, roads, POIs, addresses, all free, but downloading it normally requires Python or Suckle.
+
+7
+00:00:38.86,000 --> 00:00:43.14,000
+Section 3. The Tool. 01Feev 035.
+
+8
+00:00:44,000 --> 00:00:47.44,000
+I built a browser tool, the Overture Downloader.
+
+9
+00:00:48,000 --> 00:00:55.34,000
+You go to heenko.com tools slash Overture Downloader, draw a box around your study area on the map,
+
+10
+00:00:55.34,000 --> 00:01:2.5799999999999983,000
+pick your data set, let's say places, and hit download. You get a GeoJSON file you can open in
+
+11
+00:01:2.5799999999999983,000 --> 00:01:11.739999999999995,000
+QGIS R or Python instantly. Section 4. CTA 035 045. No account, no cost, no install.
+
+12
+00:01:12.299999999999997,000 --> 00:01:15.760000000000005,000
+Link in bio. And yes, it works for international areas too.

@@ -1,0 +1,87 @@
+1
+00:00:00,000 --> 00:00:5.52,000
+Hook. You can get free Overture Maps building data in 30 seconds. No Python, no terminal.
+
+2
+00:00:6.38,000 --> 00:00:11.32,000
+Platform. YouTube 16.9. Duration. 75s.
+
+3
+00:00:11.92,000 --> 00:00:18.32,000
+Audience. GIS Analyst. Section 1. Hook. 0.0.5.
+
+4
+00:00:18.32,000 --> 00:00:22.5,000
+You already know Overture Maps data is free. The problem is actually getting it out.
+
+5
+00:00:23.54,000 --> 00:00:26.7,000
+Section 2. Problem 0.05 to 0.20.
+
+6
+00:00:26.7,000 --> 00:00:38.56,000
+The official workflow? Install Python, set up a virtual ENV, figure out your bounding box coordinates, run a CLI command, hope it works, or write a DuckDB SQL query against an S3 bucket.
+
+7
+00:00:39.36,000 --> 00:00:43,000
+For a lot of us, that's half a day gone before we even open QGIS.
+
+8
+00:00:43.84,000 --> 00:00:46.68,000
+Section 3. Solution 020-040
+
+9
+00:00:46.68,000 --> 00:00:52.44,000
+I built something that skips all of that. Go to hienko.com, Tools Overture Downloader.
+
+10
+00:00:52.44,000 --> 00:00:56.08,000
+You get a map? Just draw a rectangle around your area of interest.
+
+11
+00:00:56.48,000 --> 00:00:59.4,000
+Pick your data set. Buildings, places, roads, addresses.
+
+12
+00:00:59.8,000 --> 00:01:0.9399999999999977,000
+Hit download. That's it.
+
+13
+00:01:1.6599999999999966,000 --> 00:01:6.760000000000005,000
+GeoJSON lands straight in your downloads folder, ready to drag into QGIS or ArcGIS.
+
+14
+00:01:7.3799999999999955,000 --> 00:01:10.879999999999995,000
+Section 4. Proof. Arrow 41. Watch.
+
+15
+00:01:11.319999999999993,000 --> 00:01:14.439999999999998,000
+I'm grabbing building footprints for the Melbourne CBD right now.
+
+16
+00:01:14.939999999999998,000 --> 00:01:19.299999999999997,000
+Bounding box drawn. Building selected. Downloading. Done.
+
+17
+00:01:19.299999999999997,000 --> 00:01:22.64,000
+No installs, no credits burned, no terminal.
+
+18
+00:01:23.28,000 --> 00:01:26.64,000
+Section 5. CTA-10-WALK-115
+
+19
+00:01:26.64,000 --> 00:01:29.08,000
+It's completely free to use.
+
+20
+00:01:29.5,000 --> 00:01:30.42,000
+Link's in the description.
+
+21
+00:01:31.099999999999994,000 --> 00:01:32.64,000
+If this saved you time, subscribe.
+
+22
+00:01:33.2,000 --> 00:01:34.86,000
+I'm building more tools like this.

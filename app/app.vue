@@ -15,8 +15,8 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 const isMapPage = computed(() => {
   const p = route.path
-  // Hide header on individual tool/map pages, but keep it on the index pages
-  return (p.startsWith('/maps/') || p.startsWith('/tools/'))
+  // Hide header on individual tool/map pages, promote dashboard, but keep it on the index pages
+  return (p.startsWith('/maps/') || p.startsWith('/tools/') || p.startsWith('/promote'))
 })
 </script>
 

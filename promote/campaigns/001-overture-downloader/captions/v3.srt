@@ -1,0 +1,91 @@
+1
+00:00:00,000 --> 00:00:4.68,000
+Hook DuckDB vs. Overture Downloader. Same data, very different experience.
+
+2
+00:00:5.16,000 --> 00:00:9.02,000
+Platform YouTube 16-X9. Duration 90s.
+
+3
+00:00:9.38,000 --> 00:00:15.24,000
+Audience GS Analyst. Section 1. Setup 0.0.0.0.8.
+
+4
+00:00:15.64,000 --> 00:00:18.14,000
+There are a few ways to get Overture Maps data.
+
+5
+00:00:18.46,000 --> 00:00:22.18,000
+I'm going to show you two of them side by side so you can decide which fits your workflow.
+
+6
+00:00:22.18,000 --> 00:00:26.58,000
+Section 2. The Hard Way 08040
+
+7
+00:00:26.58,000 --> 00:00:30.22,000
+Method 1. The official Python CLI.
+
+8
+00:00:30.66,000 --> 00:00:35.44,000
+Install overture maps via pip, look up your bounding box coordinates from a separate tool,
+
+9
+00:00:35.94,000 --> 00:00:42.16,000
+format them as west-south-east-north, run the download command, specify your output format, wait.
+
+10
+00:00:42.84,000 --> 00:00:47.26,000
+It works, but if your pip environment is broken or you haven't touched the terminal in a while,
+
+11
+00:00:47.6,000 --> 00:00:50.36,000
+that quick data pull turns into a debugging session.
+
+12
+00:00:50.36,000 --> 00:00:56.82,000
+Method 2. DuckDB. Write a SQL query against S3. Make sure your region is set correctly.
+
+13
+00:00:57.28,000 --> 00:00:59.74,000
+Understand Geoparquet enough to export it properly.
+
+14
+00:01:0.4200000000000017,000 --> 00:01:4.560000000000002,000
+Again, totally valid if that's your world, but it's a lot of setup for,
+
+15
+00:01:4.819999999999993,000 --> 00:01:6.540000000000006,000
+I just need the roads for this district.
+
+16
+00:01:7.079999999999998,000 --> 00:01:10.5,000
+Section 3. The Fast Way. 040-110
+
+17
+00:01:10.5,000 --> 00:01:17.560000000000002,000
+Method 3. The Overture Downloader at hanko.com slash tools slash Overture Downloader.
+
+18
+00:01:17.560000000000002,000 --> 00:01:23.599999999999994,000
+Open browser. Draw a rectangle on the map over your area. Pick your data set. Download.
+
+19
+00:01:24.5,000 --> 00:01:28.78,000
+GeoJSON is in your folder in under a minute. Same Overture data. Zero setup.
+
+20
+00:01:29.36,000 --> 00:01:31.760000000000005,000
+Section 4. Verdict 110-130.
+
+21
+00:01:32.42,000 --> 00:01:36.239999999999995,000
+If you work with Overture regularly and live in the terminal, the CLI is great.
+
+22
+00:01:36.81999999999999,000 --> 00:01:41.459999999999994,000
+If you need data quickly, you're on a shared computer, or you're handing this off to a non-developer,
+
+23
+00:01:41.459999999999994,000 --> 00:01:45.519999999999996,000
+the browser tool is just faster. Both are free. Link to both in the description.

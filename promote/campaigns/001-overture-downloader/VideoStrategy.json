@@ -1,0 +1,169 @@
+
+{
+  "tool": "Overture Downloader",
+  "url": "heenco.com/tools/overture-downloader",
+  "audiences": [
+    {
+      "id": "gis-analyst",
+      "label": "GIS Analysts & Cartographers",
+      "pain": "They know Overture data exists and is free, but setting up DuckDB or a Python CLI just to grab buildings for one neighborhood kills their afternoon."
+    },
+    {
+      "id": "urban-planner",
+      "label": "Urban Planners & Municipal Staff",
+      "pain": "They need current road networks and building footprints for reports but their ArcGIS credits are always running low and IT won't approve new tools."
+    },
+    {
+      "id": "dev-geo",
+      "label": "Geo Developers & Data Engineers",
+      "pain": "They prototype apps fast but spinning up the Overture CLI for every new bounding box in a new project slows down iteration."
+    },
+    {
+      "id": "researcher-student",
+      "label": "Geography Students & Academic Researchers",
+      "pain": "They want global POI or building data for a study area but have no AWS credentials, no Python env set up, and no time to learn GeoParquet."
+    },
+    {
+      "id": "osm-power-user",
+      "label": "OpenStreetMap Power Users & HOT Mappers",
+      "pain": "They want to cross-reference or supplement OSM data with Overture's 64M+ POIs for a region but every existing workflow requires cloud infrastructure they don't have."
+    }
+  ],
+  "videos": [
+    {
+      "id": "v1",
+      "format": "demo",
+      "platform": "youtube-16x9",
+      "targetDuration": 75,
+      "audience": "gis-analyst",
+      "hook": "You can get free Overture Maps building data in 30 seconds — no Python, no terminal.",
+      "script": "[SECTION 1 — HOOK 0:00–0:05]\nYou already know Overture Maps data is free. The problem is actually getting it out.\n\n[SECTION 2 — PROBLEM 0:05–0:20]\nThe official workflow? Install Python, set up a virtual env, figure out your bounding box coordinates, run a CLI command, hope it works. Or write a DuckDB SQL query against an S3 bucket. For a lot of us, that's half a day gone before we even open QGIS.\n\n[SECTION 3 — SOLUTION 0:20–0:40]\nI built something that skips all of that. Go to heenco.com/tools/overture-downloader. You get a map — just draw a rectangle around your area of interest. Pick your dataset: buildings, places, roads, addresses. Hit download. That's it. GeoJSON lands straight in your downloads folder, ready to drag into QGIS or ArcGIS.\n\n[SECTION 4 — PROOF 0:40–1:00]\nWatch — I'm grabbing building footprints for the Melbourne CBD right now. Bounding box drawn, buildings selected, downloading. Done. No installs, no credits burned, no terminal.\n\n[SECTION 5 — CTA 1:00–1:15]\nIt's completely free to use. Link's in the description. If this saved you time, subscribe — I'm building more tools like this.",
+      "thumbnailText": "FREE BUILDING DATA\nNO CODING NEEDED",
+      "thumbnailStyle": "Dark navy background. Bold white and electric-cyan text. Left side shows a glowing bounding-box rectangle drawn over a city map. Right side shows a clean download arrow icon. Minimal, technical aesthetic.",
+      "imagePrompt": "Cinematic aerial view of a dense city at night, buildings illuminated with glowing cyan wireframe outlines overlaid on rooftops, a glowing rectangular bounding box selection drawn across several city blocks, midnight-blue atmosphere, photorealistic, 8k, geospatial data visualization aesthetic, subtle grid overlay, no people, high contrast",
+      "audioMood": "Focused, efficient, quietly satisfying",
+      "audioTempo": 105,
+      "audioFeel": "Minimal lo-fi electronic with a clean synth arp. Think Bonobo meets a productivity app soundtrack. No drops, no distractions. Steady forward motion.",
+      "captions": {
+        "youtube": {
+          "title": "Free Overture Maps Data — No Code Required",
+          "description": "Download Overture Maps buildings, roads & POIs by drawing a box. No Python, no DuckDB, no ArcGIS credits.\nTry it free: heenco.com/tools/overture-downloader\nWorks with QGIS, ArcGIS, Mapbox — any GIS tool.",
+          "tags": ["overture maps", "free GIS data", "building footprints download", "GIS tools", "no code GIS"]
+        },
+        "linkedin": "Overture Maps has 64 million+ POIs, global building footprints, and road networks — all free and open.\n\nThe catch? The official download workflow involves Python environments, DuckDB SQL queries, and AWS S3 paths. Not exactly click-and-go.\n\nSo I built the Overture Downloader: a browser-based tool that lets you draw a bounding box on a map and download exactly the Overture dataset you need. Buildings, places, roads, addresses — as GeoJSON, ready for QGIS or ArcGIS. No installs. No credits consumed.\n\nIf you work in urban planning, spatial analysis, or any GIS-adjacent role and you've been curious about Overture but couldn't get past the tooling barrier — this is for you.\n\nFree to use at heenco.com/tools/overture-downloader\n\n#GIS #OpenData #OvertureMaps #UrbanPlanning #Geospatial",
+        "twitter": "Overture Maps data is free. Actually downloading it... not so simple. Built a browser tool — draw a box, pick a layer, done. No Python, no SQL. heenco.com/tools/overture-downloader #GIS #OpenData #OvertureMaps",
+        "instagram": "Free global map data that nobody can actually download 😅\n\nOverture Maps has building footprints for the entire world, 64M+ places, road networks — all open license. But getting it out requires Python CLIs, DuckDB queries, or AWS S3 paths.\n\nI built a tool that fixes that. Go to the Overture Downloader, draw a rectangle on the map, pick your dataset, hit download. GeoJSON in your folder. Done in under 30 seconds.\n\nNo installs. No coding. No ArcGIS credits. Just data.\n\nLink in bio — it's completely free.\n\n#GIS #OpenData #OvertureMaps #Cartography #Geospatial #QGIS #UrbanPlanning #MapData #FreeTool #GISTools #DataDownload #BuildingFootprints",
+        "tiktok": "free map data that's actually impossible to download... until now 😭 overture maps has global buildings, roads, POIs — all free. but you need python, sql, and basically a cs degree to get it. i made a browser tool: draw a box, pick your layer, download. that's literally it. link in bio, zero cost. #gis #opendata #maptok #geospatial #overturemaps",
+        "reddit": "I've been frustrated for a while that Overture Maps data is technically free but practically inaccessible unless you're comfortable with Python CLIs or writing DuckDB queries against S3 buckets. Most GIS folks I know — planners, analysts, researchers — just want the data, not a cloud data engineering session.\n\nSo I built a browser-based tool called the Overture Downloader. You draw a bounding box on a map, pick what you want (buildings, places, roads, addresses), and download it as GeoJSON. No installs, no terminal, no ArcGIS credits. Works globally.\n\nIt's free: heenco.com/tools/overture-downloader\n\nWould love feedback from this community — especially on edge cases, large AOIs, or dataset types you'd want prioritised."
+      }
+    },
+    {
+      "id": "v2",
+      "format": "problem-story",
+      "platform": "youtube-shorts-9x16",
+      "targetDuration": 50,
+      "audience": "urban-planner",
+      "hook": "My ArcGIS credits ran out downloading building data. There's a better way.",
+      "script": "[SECTION 1 — HOOK 0:00–0:05]\nI burned through half my ArcGIS credits just trying to pull building footprints for a single suburb.\n\n[SECTION 2 — THE BETTER WAY 0:05–0:25]\nOverture Maps has all of that data for free — globally. The problem was actually getting it without a Python environment or SQL skills. So I built a browser tool that does it differently. You go to heenco.com/tools/overture-downloader, draw your area on the map, select Buildings, and click download. GeoJSON. Done. Costs nothing.\n\n[SECTION 3 — WHO IT'S FOR 0:25–0:40]\nIf you're in planning, local government, or just sick of watching your credits drain — this is made for you.\n\n[SECTION 4 — CTA 0:40–0:50]\nLink in bio. Free tool, no sign-up.",
+      "thumbnailText": "STOP WASTING\nARCGIS CREDITS",
+      "thumbnailStyle": "High contrast vertical frame. Top half: red credit burn icon or dollar sign bleeding out. Bottom half: clean green download interface on dark background. Bold white text. Urgent, punchy.",
+      "imagePrompt": "Cinematic close-up of a glowing digital map interface on a dark background, a hand drawing a glowing rectangular selection box over a city plan, electric blue and green UI elements, dramatic side lighting, photorealistic, midnight-blue geospatial aesthetic, no text in image, 4k",
+      "audioMood": "Urgent then relieved",
+      "audioTempo": 118,
+      "audioFeel": "Punchy lo-fi beat that builds quickly then drops into a satisfying resolution. Short, no padding.",
+      "captions": {
+        "youtube": {
+          "title": "Stop Burning ArcGIS Credits on Building Data",
+          "description": "Overture Maps buildings and places are free — here's how to download them without any coding.\nFree tool: heenco.com/tools/overture-downloader\nNo installs, no credits, no SQL.",
+          "tags": ["arcgis credits", "free building data", "overture maps download", "GIS", "urban planning GIS"]
+        },
+        "linkedin": "Spent half my ArcGIS credit allocation downloading building footprints for a single project area. Sound familiar?\n\nOverture Maps Foundation publishes global building, road, and POI data completely free under an open license. But the standard access path — Python CLI or DuckDB SQL against S3 — isn't realistic for most planning teams.\n\nThe Overture Downloader changes that: draw your study area on a map, pick your dataset, download as GeoJSON. Works for buildings, roads, addresses, and places globally.\n\nFree at heenco.com/tools/overture-downloader — no account, no installs.\n\n#UrbanPlanning #GIS #OpenData #ArcGIS #OvertureMaps",
+        "twitter": "Burned half my ArcGIS credits on one building footprint download. Never again. Overture Maps data is free — the Overture Downloader makes actually getting it just as easy. heenco.com/tools/overture-downloader #GIS #UrbanPlanning",
+        "instagram": "ArcGIS credits are not infinite and they will absolutely run out at the worst time 🙃\n\nBuilding footprints. Road networks. POI data. All of it exists for free in Overture Maps — global, open license, updated monthly.\n\nThe Overture Downloader: draw your area on the map, pick your dataset, download GeoJSON. That's the whole thing. No credits, no install, no code.\n\nPlanning folks, municipal GIS teams, students — this one's for you. Link in bio.\n\n#UrbanPlanning #GIS #OpenData #Cartography #Geospatial #OvertureMaps #ArcGIS #QGIS #CityPlanning #MapTools #FreeTool",
+        "tiktok": "arcgis credits going brrr 💸 and all i needed was building footprints for one suburb. overture maps has all of this for free — i just built a tool so you can actually download it without touching python. draw box. pick layer. done. link in bio. #urbanplanning #gis #arcgis #maptok #freegisdata",
+        "reddit": "Fellow planners — if your org's ArcGIS credits are always mysteriously low, you might want to know about this. Overture Maps has global building footprints, road networks, and POI data under a free open license. The problem is the download UX requires Python or SQL skills most planning teams don't have on hand.\n\nI made a browser tool — the Overture Downloader — that lets you draw your study area and download what you need as GeoJSON. No ArcGIS credits consumed, no installs. heenco.com/tools/overture-downloader\n\nWould be curious if anyone's tried integrating Overture buildings into planning workflows already."
+      }
+    },
+    {
+      "id": "v3",
+      "format": "comparison",
+      "platform": "youtube-16x9",
+      "targetDuration": 90,
+      "audience": "gis-analyst",
+      "hook": "DuckDB vs. Overture Downloader — same data, very different experience.",
+      "script": "[SECTION 1 — SETUP 0:00–0:08]\nThere are a few ways to get Overture Maps data. I'm going to show you two of them side by side so you can decide which fits your workflow.\n\n[SECTION 2 — THE HARD WAY 0:08–0:40]\nMethod one: the official Python CLI. Install overturemaps via pip, look up your bounding box coordinates from a separate tool, format them as west-south-east-north, run the download command, specify your output format, wait. It works — but if your pip environment is broken or you haven't touched the terminal in a while, that 'quick' data pull turns into a debugging session.\n\nMethod two: DuckDB. Write a SQL query against S3, make sure your region is set correctly, understand GeoParquet enough to export it properly. Again — totally valid if that's your world. But it's a lot of setup for 'I just need the roads for this district.'\n\n[SECTION 3 — THE FAST WAY 0:40–1:10]\nMethod three: the Overture Downloader at heenco.com/tools/overture-downloader. Open browser. Draw a rectangle on the map over your area. Pick your dataset. Download. GeoJSON is in your folder in under a minute. Same Overture data, zero setup.\n\n[SECTION 4 — VERDICT 1:10–1:30]\nIf you work with Overture regularly and live in the terminal, the CLI is great. If you need data quickly, you're on a shared computer, or you're handing this off to a non-developer — the browser tool is just faster. Both are free. Link to both in the description.",
+      "thumbnailText": "CLI vs BROWSER\nWHICH IS FASTER?",
+      "thumbnailStyle": "Split-screen thumbnail. Left half: dark terminal window with scrolling code, slightly red-tinted. Right half: clean glowing map interface with a drawn bounding box, cyan-tinted. Bold white label text on each half. VS in the center in bright yellow.",
+      "imagePrompt": "Split-scene cinematic composition, left side shows a dark terminal CLI with faint green code text and a slight red atmospheric glow, right side shows a glowing interactive web map with a luminous cyan bounding-box rectangle drawn over a city, both halves separated by a bright vertical dividing line, midnight-blue geospatial aesthetic, photorealistic, 8k, no people",
+      "audioMood": "Analytical, methodical, then satisfying resolution",
+      "audioTempo": 100,
+      "audioFeel": "Clean minimal electronic, sparse percussion, subtle tension building to a clean finish. Think neutral documentary background music for a tech tutorial.",
+      "captions": {
+        "youtube": {
+          "title": "Overture Maps: CLI vs Browser Tool Compared",
+          "description": "Python CLI vs DuckDB vs the Overture Downloader — same free data, very different workflows.\nTry the browser tool: heenco.com/tools/overture-downloader\nOfficial Overture CLI: docs.overturemaps.org",
+          "tags": ["overture maps tutorial", "overture maps download", "GIS data download", "DuckDB GIS", "overture maps python"]
+        },
+        "linkedin": "If you've tried to access Overture Maps data, you know there's a gap between 'this is free and open' and 'I can actually use it today.'\n\nThe official options — Python CLI and DuckDB against S3 — are powerful but assume a developer environment most spatial analysts and planners don't have ready to go.\n\nI built the Overture Downloader to close that gap: a browser tool where you draw your area of interest, select your dataset type, and get a GeoJSON download. Same underlying Overture data, no terminal required.\n\nComparison breakdown in the video. Both tools are free — pick the one that matches your workflow.\n\nheenco.com/tools/overture-downloader\n\n#GIS #OvertureMaps #Geospatial #OpenData #SpatialAnalysis",
+        "twitter": "Python CLI vs DuckDB vs just drawing a box in your browser — all pull the same free Overture Maps data. Made a comparison video. Spoiler: the browser tool is faster for most workflows. heenco.com/tools/overture-downloader #GIS #OvertureMaps",
+        "instagram": "Three ways to download free Overture Maps data — one of them doesn't require opening a terminal 👀\n\nPython CLI: powerful, breaks if your env is wrong.\nDuckDB SQL: fast, assumes you know GeoParquet.\nOverture Downloader: draw a box, click download, done.\n\nSame underlying data. Very different time investment. Full comparison in my YouTube video — link in bio.\n\nFree tool: heenco.com/tools/overture-downloader\n\n#GIS #OvertureMaps #OpenData #Geospatial #Cartography #DuckDB #QGIS #DataDownload #FreeTool #MapData #SpatialData",
+        "tiktok": "3 ways to get free overture maps data, ranked by how much they make you want to cry 😭 option 3 is just… a map and a download button. no cap. full breakdown on youtube, link in bio. #gis #overturemaps #maptok #geodata #duckdb",
+        "reddit": "Quick comparison for anyone who's looked at the Overture Maps docs and thought 'this is a lot of setup for one shapefile.' I put together a video comparing the Python CLI, DuckDB, and a browser-based tool I made called the Overture Downloader.\n\nTLDR: CLI and DuckDB are great if you're already in that ecosystem. If you're not, or you're on a shared machine, or you're a planner who just needs buildings for a study area — the browser tool is dramatically faster.\n\nheenco.com/tools/overture-downloader — completely free. Video in comments."
+      }
+    },
+    {
+      "id": "v4",
+      "format": "tutorial",
+      "platform": "tiktok-9x16",
+      "targetDuration": 45,
+      "audience": "researcher-student",
+      "hook": "Get global building data for your thesis study area — free, in 60 seconds.",
+      "script": "[SECTION 1 — HOOK 0:00–0:05]\nIf you need spatial data for your research and you don't have an ArcGIS license — listen up.\n\n[SECTION 2 — WHAT IT IS 0:05–0:15]\nOverture Maps is a free, open dataset backed by Amazon, Microsoft, and Meta. Global buildings, roads, POIs, addresses. All free. But downloading it normally requires Python or SQL.\n\n[SECTION 3 — THE TOOL 0:15–0:35]\nI built a browser tool — the Overture Downloader. You go to heenco.com/tools/overture-downloader, draw a box around your study area on the map, pick your dataset — let's say Places — and hit download. You get a GeoJSON file you can open in QGIS, R, or Python instantly.\n\n[SECTION 4 — CTA 0:35–0:45]\nNo account. No cost. No install. Link in bio — and yes, it works for international areas too.",
+      "thumbnailText": "FREE THESIS DATA\nIN 60 SECONDS",
+      "thumbnailStyle": "Bright academic-meets-tech aesthetic. Bold sans-serif text top and bottom. Center shows a glowing map with a bounding box drawn over a recognizable city shape. Electric blue on dark background. Clean and urgent.",
+      "imagePrompt": "Cinematic top-down view of an illuminated city map at night, glowing cyan grid lines overlaid on city blocks, a bright rectangular selection box drawn over a university campus district, deep midnight-blue background, photorealistic, geospatial aesthetic, subtle data point particles floating upward, 8k, no people, no text",
+      "audioMood": "Energetic, academic-cool, optimistic",
+      "audioTempo": 122,
+      "audioFeel": "Upbeat lo-fi hip hop with a clean sample chop. Study-session energy. Something like Lofi Girl meets a tech startup ad.",
+      "captions": {
+        "youtube": {
+          "title": "Free Global Spatial Data for Research — No Code",
+          "description": "Download Overture Maps data for any study area worldwide — no Python, no ArcGIS license needed.\nFree tool: heenco.com/tools/overture-downloader\nWorks with QGIS, R spatial, GeoPandas and more.",
+          "tags": ["free GIS data research", "overture maps download", "QGIS tutorial", "spatial data thesis", "free building footprints"]
+        },
+        "linkedin": "Geography and urban planning students: Overture Maps Foundation publishes global building footprints, road networks, POI data, and addresses — all under a free open license.\n\nAccessing it through the official channels means setting up a Python environment or writing DuckDB SQL, which isn't always practical when you're in the middle of fieldwork or analysis.\n\nThe Overture Downloader simplifies this: draw your study area on a map, select your dataset, and download GeoJSON ready for QGIS, R, or Python. Free, no login required, works globally.\n\nheenco.com/tools/overture-downloader\n\n#GIS #SpatialData #OpenData #GeographyStudents #UrbanPlanning #Research",
+        "twitter": "Geography students: Overture Maps has free global building, road, and POI data for your study area. No ArcGIS license needed. Draw a box, download GeoJSON. heenco.com/tools/overture-downloader #GIS #OpenData #Research",
+        "instagram": "No ArcGIS? No problem 📍\n\nOverture Maps has free global data — buildings, roads, addresses, 64M+ POIs — open license, updated every month.\n\nFor students and researchers, actually downloading it usually means Python environments or SQL queries you don't have time to debug between classes.\n\nThe Overture Downloader: open it in your browser, draw your study area, pick your dataset, download. GeoJSON ready for QGIS or GeoPandas.\n\nFree. No signup. Works internationally. Link in bio.\n\n#Geography #GIS #SpatialData #OpenData #QGIS #Research #ThesisLife #UrbanPlanning #Cartography #FreeTool #OvertureMaps #GeoPandas",
+        "tiktok": "free data for your geography thesis and you don't need python 🙏 overture maps = global buildings, roads, POIs, all free. the downloader tool = draw a box on a map and get a geojson. done in literally 60 seconds. link in bio, works anywhere in the world. #gis #geography #thesis #maptok #opendata",
+        "reddit": "Posting this for geography and urban planning students who've hit the data access wall: Overture Maps has global building footprints, road networks, POI data, and address points all under a free open license. It's updated monthly and has solid global coverage.\n\nThe friction point is that the official download tools assume Python or DuckDB knowledge. I built a browser tool — the Overture Downloader — so you can draw your study area and get GeoJSON without any setup.\n\nheenco.com/tools/overture-downloader — free, no account. Works internationally. Happy to answer questions about the data or the tool."
+      }
+    },
+    {
+      "id": "v5",
+      "format": "hook-teaser",
+      "platform": "instagram-reel-9x16",
+      "targetDuration": 30,
+      "audience": "osm-power-user",
+      "hook": "Overture Maps has 64 million POIs. Here's how to pull just the ones you need.",
+      "script": "[SECTION 1 — HOOK 0:00–0:05]\nOverture Maps has 64 million places worldwide. More than OSM in many regions. And it's all free.\n\n[SECTION 2 — THE PROBLEM 0:05–0:12]\nBut getting a subset of it — say, all cafes in a specific district — normally means DuckDB SQL or a Python CLI with your bbox coordinates figured out separately.\n\n[SECTION 3 — THE FIX 0:12–0:25]\nWith the Overture Downloader you draw the area on the map, select Places, and download. You get all 64M categorised POIs filtered to your bounding box, as GeoJSON. Ready for JOSM, QGIS, or whatever you're running your conflation workflow in.\n\n[SECTION 4 — CTA 0:25–0:30]\nLink in bio. Free. No install.",
+      "thumbnailText": "64M FREE POIs\nDRAW & DOWNLOAD",
+      "thumbnailStyle": "Dark atmospheric map covered in thousands of tiny glowing point clusters, a drawn selection rectangle highlights one dense cluster. Bold electric-yellow stat text top-left. Clean CTA text bottom. Deep navy background.",
+      "imagePrompt": "Cinematic bird's-eye view of a dense global point-of-interest map at night, thousands of tiny glowing yellow and cyan data points scattered across a dark city grid, a luminous rectangular selection box drawn over a dense cluster of points, midnight-blue background, photorealistic, geospatial data visualization, 8k, epic scale, no text, no people",
+      "audioMood": "Expansive, data-driven, quietly awe-inspiring",
+      "audioTempo": 95,
+      "audioFeel": "Ambient electronic with a slow pulse and subtle data-sonification texture. Think Brian Eno meets a mapping startup. Calm but intelligent.",
+      "captions": {
+        "youtube": {
+          "title": "Download Overture Maps POIs for Any Area — Instantly",
+          "description": "64 million global places, free. Draw your area and download the Overture Places dataset with no code.\nFree tool: heenco.com/tools/overture-downloader\nGreat for OSM conflation, POI analysis, and map enrichment.",
+          "tags": ["overture maps places", "free POI data", "openstreetmap alternative", "GIS data download", "overture maps"]
+        },
+        "linkedin": "Overture Maps Foundation now hosts over 64 million place records globally — businesses, landmarks, amenities — under a free open license. For anyone doing POI analysis, map enrichment, or OSM conflation work, this dataset is a significant resource.\n\nThe access barrier has been the tooling: DuckDB or a Python CLI are the standard paths, both requiring setup time that slows down exploratory work.\n\nThe Overture Downloader brings this to a browser interface. Draw your area of interest, select the Places dataset, download as GeoJSON. No infrastructure required.\n\nFree at heenco.com/tools/overture-downloader.\n\n#GIS #OpenData #OvertureMaps #POI #OpenStreetMap #Geospatial",
+        "twitter": "Overture Maps has 64M+ global POIs, free and open. The Overture Downloader lets you pull exactly the ones you need — just draw a box. No SQL, no CLI. heenco.com/tools/overture-downloader #OSM #GIS #OpenData #OvertureMaps",
+        "instagram": "64 million POIs. Free. Open license. Updated monthly 🌍\n\nOverture Maps Places has more coverage than OSM in a lot of regions. Businesses, landmarks, hospitals, cafes — globally categorised.\n\nActually downloading a subset of it usually means SQL or a CLI. The Overture Downloader skips that: draw your area, select Places, get GeoJSON.\n\nPerfect for conflation workflows, urban analysis, or just enriching your map with fresh POI data.\n\nLink in bio — free, no account.\n\n#OpenStreetMap #GIS #OvertureMaps #POI #OpenData #Cartography #Geospatial #MapData #QGIS #DataDownload #FreeTool #OSM #MappingCommunity",
+        "tiktok": "overture maps has 64 MILLION free POIs and most people have no idea how to actually download them 😅 draw a box on the map, hit download, done. link in bio. #openstreetmap #gis #overturemaps #maptok #geodata",
+        "reddit": "For the OSM and HOT community: Overture Maps Places now has 64M+ categorised POIs globally, with recent additions from Foursquare Open Source Places. It's a genuinely useful dataset for conflation or gap analysis — but pulling a subset of it required DuckDB or Python until now.\n\nI built the Overture Downloader: browser tool, draw your AOI, select Places (or buildings, roads, addresses), download GeoJSON. Free, no account, works for any region.\n\nheenco.com/tools/overture-downloader\n\nCurious whether anyone in this community has been doing systematic Overture ↔ OSM conflation and what your workflow looks like."
+      }
+    }
+  ]
+}

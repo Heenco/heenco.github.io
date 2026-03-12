@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Figtree:wght@700;800;900&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+    }
+
+    body {
+      background: #060a14;
+      font-family: 'Figtree', 'Segoe UI', system-ui, sans-serif;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 64px 96px;
+      position: relative;
+    }
+
+    /* Radial blue glow — top right */
+    .glow {
+      position: absolute;
+      top: -200px;
+      right: -200px;
+      width: 680px;
+      height: 680px;
+      background: radial-gradient(
+        circle,
+        rgba(14, 165, 233, 0.22) 0%,
+        rgba(12, 74, 110, 0.10) 45%,
+        transparent 70%
+      );
+      pointer-events: none;
+    }
+
+    /* Subtle bottom-left accent */
+    .glow-2 {
+      position: absolute;
+      bottom: -100px;
+      left: -100px;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(
+        circle,
+        rgba(14, 165, 233, 0.08) 0%,
+        transparent 70%
+      );
+      pointer-events: none;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #0ea5e9;
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 700;
+      padding: 6px 20px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+    }
+
+    .headline {
+      font-size: 88px;
+      font-weight: 900;
+      line-height: 1.0;
+      color: #ffffff;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      max-width: 1000px;
+      /* Clamp to 3 lines */
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .tool {
+      font-size: 30px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.18);
+      letter-spacing: 0.06em;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="glow-2"></div>
+
+  <div class="top">
+    <span class="badge">__CATEGORY__</span>
+  </div>
+
+  <div class="headline">__HEADLINE__</div>
+
+  <div class="bottom">
+    <span class="tool">__TOOL__</span>
+    <span class="logo">heenco.com</span>
+  </div>
+</body>
+</html>

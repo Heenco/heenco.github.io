@@ -26,3 +26,8 @@ logs
 # Playwright
 test-results/
 playwright-report/
+
+# Promotion pipeline — generated outputs and credentials
+promote/output/
+promote/audio/
+promote/auth/

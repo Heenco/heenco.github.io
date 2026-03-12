@@ -12,7 +12,13 @@
     "index:esri": "node scripts/gen-esri-index.mjs",
     "record": "playwright test",
     "record:overture": "playwright test tests/demo-overture.spec.ts",
-    "record:esri": "playwright test tests/demo-esri.spec.ts"
+    "record:esri": "playwright test tests/demo-esri.spec.ts",
+    "new:campaign": "node scripts/new-campaign.mjs",
+    "generate:assets": "node scripts/generate-assets.mjs",
+    "generate:voiceover": "node scripts/generate-voiceover.mjs",
+    "generate:captions": "node scripts/generate-captions.mjs",
+    "generate:thumbnail": "node scripts/generate-thumbnail.mjs",
+    "select:music": "node scripts/select-music.mjs"
   },
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.33.1-dev20.0",

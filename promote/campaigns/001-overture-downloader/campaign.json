@@ -1,0 +1,188 @@
+{
+  "id": "001",
+  "type": "tool",
+  "name": "Overture Downloader",
+  "slug": "overture-downloader",
+  "url": "https://heenco.com/tools/overture-downloader",
+  "month": "2026-03",
+  "recordingCmd": "npm run record:overture",
+  "recordingSrc": "test-results/demo-overture-*/video.webm",
+  "audiences": [
+    {
+      "id": "gis-analyst",
+      "label": "GIS Analysts & Cartographers",
+      "pain": "They know Overture data exists and is free, but setting up DuckDB or a Python CLI just to grab buildings for one neighborhood kills their afternoon."
+    },
+    {
+      "id": "urban-planner",
+      "label": "Urban Planners & Municipal Staff",
+      "pain": "They need current road networks and building footprints for reports but their ArcGIS credits are always running low and IT won't approve new tools."
+    },
+    {
+      "id": "dev-geo",
+      "label": "Geo Developers & Data Engineers",
+      "pain": "They prototype apps fast but spinning up the Overture CLI for every new bounding box in a new project slows down iteration."
+    },
+    {
+      "id": "researcher-student",
+      "label": "Geography Students & Academic Researchers",
+      "pain": "They want global POI or building data for a study area but have no AWS credentials, no Python env set up, and no time to learn GeoParquet."
+    },
+    {
+      "id": "osm-power-user",
+      "label": "OpenStreetMap Power Users & HOT Mappers",
+      "pain": "They want to cross-reference or supplement OSM data with Overture's 64M+ POIs for a region but every existing workflow requires cloud infrastructure they don't have."
+    }
+  ],
+  "phases": {
+    "1_setup": "not-started",
+    "2_recording": "not-started",
+    "3_scripts": "not-started",
+    "4_assets": "not-started",
+    "5_assembly": "not-started",
+    "6_youtube": "not-started",
+    "7_distribution": "not-started",
+    "8_reporting": "not-started"
+  },
+  "pendingActions": [],
+  "videos": [
+    {
+      "id": "v1",
+      "format": "demo",
+      "audience": "gis-analyst",
+      "title": "",
+      "selectedScript": "v1_demo",
+      "abTest": true,
+      "youtubeIds": {
+        "hook_a": null,
+        "hook_b": null
+      },
+      "winnerHook": null,
+      "status": "not-started",
+      "captionsPath": "captions/v1.srt",
+      "thumbnails": {
+        "a": "thumbnails/thumb_v1_a.png",
+        "b": "thumbnails/thumb_v1_b.png"
+      },
+      "musicTrack": "placeholder-inspirational-01",
+      "musicFile": "promote/assets/music/placeholder-inspirational-01.mp3",
+      "voiceoverPath": "audio/voiceover_v1.mp3",
+      "platform": "youtube-16x9",
+      "targetDuration": 75,
+      "hook": "You can get free Overture Maps building data in 30 seconds — no Python, no terminal.",
+      "thumbnailText": "FREE BUILDING DATA\nNO CODING NEEDED",
+      "thumbnailStyle": "Dark navy background. Bold white and electric-cyan text. Left side shows a glowing bounding-box rectangle drawn over a city map. Right side shows a clean download arrow icon. Minimal, technical aesthetic.",
+      "imagePrompt": "Cinematic aerial view of a dense city at night, buildings illuminated with glowing cyan wireframe outlines overlaid on rooftops, a glowing rectangular bounding box selection drawn across several city blocks, midnight-blue atmosphere, photorealistic, 8k, geospatial data visualization aesthetic, subtle grid overlay, no people, high contrast",
+      "audioMood": "Focused, efficient, quietly satisfying",
+      "audioTempo": 105,
+      "audioFeel": "Minimal lo-fi electronic with a clean synth arp. Think Bonobo meets a productivity app soundtrack. No drops, no distractions. Steady forward motion."
+    },
+    {
+      "id": "v2",
+      "format": "problem-story",
+      "audience": "urban-planner",
+      "title": "",
+      "selectedScript": "v2_problem-story",
+      "abTest": false,
+      "youtubeIds": {
+        "main": null
+      },
+      "status": "not-started",
+      "captionsPath": "captions/v2.srt",
+      "thumbnails": {
+        "a": "thumbnails/thumb_v2_a.png"
+      },
+      "musicTrack": "placeholder-inspirational-01",
+      "musicFile": "promote/assets/music/placeholder-inspirational-01.mp3",
+      "voiceoverPath": "audio/voiceover_v2.mp3",
+      "platform": "youtube-shorts-9x16",
+      "targetDuration": 50,
+      "hook": "My ArcGIS credits ran out downloading building data. There's a better way.",
+      "thumbnailText": "STOP WASTING\nARCGIS CREDITS",
+      "thumbnailStyle": "High contrast vertical frame. Top half: red credit burn icon or dollar sign bleeding out. Bottom half: clean green download interface on dark background. Bold white text. Urgent, punchy.",
+      "imagePrompt": "Cinematic close-up of a glowing digital map interface on a dark background, a hand drawing a glowing rectangular selection box over a city plan, electric blue and green UI elements, dramatic side lighting, photorealistic, midnight-blue geospatial aesthetic, no text in image, 4k",
+      "audioMood": "Urgent then relieved",
+      "audioTempo": 118,
+      "audioFeel": "Punchy lo-fi beat that builds quickly then drops into a satisfying resolution. Short, no padding."
+    },
+    {
+      "id": "v3",
+      "format": "comparison",
+      "audience": "gis-analyst",
+      "title": "",
+      "selectedScript": "v3_comparison",
+      "abTest": false,
+      "youtubeIds": {
+        "main": null
+      },
+      "status": "not-started",
+      "captionsPath": "captions/v3.srt",
+      "thumbnails": {
+        "a": "thumbnails/thumb_v3_a.png"
+      },
+      "musicTrack": "placeholder-inspirational-01",
+      "musicFile": "promote/assets/music/placeholder-inspirational-01.mp3",
+      "platform": "youtube-16x9",
+      "targetDuration": 90,
+      "hook": "DuckDB vs. Overture Downloader — same data, very different experience.",
+      "thumbnailText": "CLI vs BROWSER\nWHICH IS FASTER?",
+      "thumbnailStyle": "Split-screen thumbnail. Left half: dark terminal window with scrolling code, slightly red-tinted. Right half: clean glowing map interface with a drawn bounding box, cyan-tinted. Bold white label text on each half. VS in the center in bright yellow.",
+      "imagePrompt": "Split-scene cinematic composition, left side shows a dark terminal CLI with faint green code text and a slight red atmospheric glow, right side shows a glowing interactive web map with a luminous cyan bounding-box rectangle drawn over a city, both halves separated by a bright vertical dividing line, midnight-blue geospatial aesthetic, photorealistic, 8k, no people",
+      "audioMood": "Analytical, methodical, then satisfying resolution",
+      "audioTempo": 100,
+      "audioFeel": "Clean minimal electronic, sparse percussion, subtle tension building to a clean finish. Think neutral documentary background music for a tech tutorial.",
+      "voiceoverPath": "audio/voiceover_v3.mp3"
+    },
+    {
+      "id": "v4",
+      "format": "tutorial",
+      "platform": "tiktok-9x16",
+      "targetDuration": 45,
+      "audience": "researcher-student",
+      "hook": "Get global building data for your thesis study area — free, in 60 seconds.",
+      "selectedScript": "v4_tutorial",
+      "thumbnailText": "FREE THESIS DATA\nIN 60 SECONDS",
+      "thumbnailStyle": "Bright academic-meets-tech aesthetic. Bold sans-serif text top and bottom. Center shows a glowing map with a bounding box drawn over a recognizable city shape. Electric blue on dark background. Clean and urgent.",
+      "imagePrompt": "Cinematic top-down view of an illuminated city map at night, glowing cyan grid lines overlaid on city blocks, a bright rectangular selection box drawn over a university campus district, deep midnight-blue background, photorealistic, geospatial aesthetic, subtle data point particles floating upward, 8k, no people, no text",
+      "audioMood": "Energetic, academic-cool, optimistic",
+      "audioTempo": 122,
+      "audioFeel": "Upbeat lo-fi hip hop with a clean sample chop. Study-session energy. Something like Lofi Girl meets a tech startup ad.",
+      "status": "not-started",
+      "youtubeIds": null,
+      "captionsPath": "captions/v4.srt",
+      "thumbnails": {
+        "a": "thumbnails/thumb_v4_a.png"
+      },
+      "musicTrack": "placeholder-inspirational-01",
+      "musicFile": "promote/assets/music/placeholder-inspirational-01.mp3",
+      "voiceoverPath": "audio/voiceover_v4.mp3"
+    },
+    {
+      "id": "v5",
+      "format": "hook-teaser",
+      "platform": "instagram-reel-9x16",
+      "targetDuration": 30,
+      "audience": "osm-power-user",
+      "hook": "Overture Maps has 64 million POIs. Here's how to pull just the ones you need.",
+      "selectedScript": "v5_hook-teaser",
+      "thumbnailText": "64M FREE POIs\nDRAW & DOWNLOAD",
+      "thumbnailStyle": "Dark atmospheric map covered in thousands of tiny glowing point clusters, a drawn selection rectangle highlights one dense cluster. Bold electric-yellow stat text top-left. Clean CTA text bottom. Deep navy background.",
+      "imagePrompt": "Cinematic bird's-eye view of a dense global point-of-interest map at night, thousands of tiny glowing yellow and cyan data points scattered across a dark city grid, a luminous rectangular selection box drawn over a dense cluster of points, midnight-blue background, photorealistic, geospatial data visualization, 8k, epic scale, no text, no people",
+      "audioMood": "Expansive, data-driven, quietly awe-inspiring",
+      "audioTempo": 95,
+      "audioFeel": "Ambient electronic with a slow pulse and subtle data-sonification texture. Think Brian Eno meets a mapping startup. Calm but intelligent.",
+      "status": "not-started",
+      "youtubeIds": null,
+      "captionsPath": "captions/v5.srt",
+      "thumbnails": {
+        "a": "thumbnails/thumb_v5_a.png"
+      },
+      "musicTrack": "placeholder-inspirational-01",
+      "musicFile": "promote/assets/music/placeholder-inspirational-01.mp3",
+      "voiceoverPath": "audio/voiceover_v5.mp3"
+    }
+  ],
+  "status": "not-started",
+  "createdAt": "2026-03-10T16:59:09.642Z",
+  "strategyFile": "promote/campaigns/001-overture-downloader/VideoStrategy.json"
+}

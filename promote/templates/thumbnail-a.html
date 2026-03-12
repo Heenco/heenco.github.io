@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Figtree:wght@700;800;900&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+    }
+
+    body {
+      background: #060a14;
+      font-family: 'Figtree', 'Segoe UI', system-ui, sans-serif;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 72px 104px 72px 112px;
+      position: relative;
+    }
+
+    /* Left accent stripe */
+    .accent {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 8px;
+      height: 100%;
+      background: linear-gradient(180deg, #0ea5e9 0%, #0c4a6e 100%);
+    }
+
+    .category {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0ea5e9;
+      text-transform: uppercase;
+      letter-spacing: 0.22em;
+      margin-bottom: 28px;
+    }
+
+    .headline {
+      font-size: 82px;
+      font-weight: 900;
+      line-height: 1.05;
+      color: #ffffff;
+      max-width: 940px;
+      margin-bottom: 40px;
+      /* Clamp to 3 lines so long hooks don't overflow */
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .tool {
+      font-size: 30px;
+      font-weight: 600;
+      color: #7dd3fc;
+    }
+
+    /* heenco watermark */
+    .logo {
+      position: absolute;
+      bottom: 52px;
+      right: 80px;
+      font-size: 18px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.2);
+      letter-spacing: 0.06em;
+    }
+  </style>
+</head>
+<body>
+  <div class="accent"></div>
+  <div class="category">__CATEGORY__</div>
+  <div class="headline">__HEADLINE__</div>
+  <div class="tool">__TOOL__</div>
+  <div class="logo">heenco.com</div>
+</body>
+</html>

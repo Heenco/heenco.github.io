@@ -1,0 +1,32 @@
+{
+  "_comment": [
+    "Music library for Heenco promotion campaigns.",
+    "Source royalty-free tracks from:",
+    "  - Pixabay Music: https://pixabay.com/music/",
+    "  - Free Music Archive: https://freemusicarchive.org/",
+    "  - ccMixter: http://ccmixter.org/",
+    "",
+    "Mood values:   inspirational | energetic | calm | dramatic | playful | professional",
+    "Energy values: low | medium | high",
+    "",
+    "Place MP3 files in promote/assets/music/ then add an entry here.",
+    "Run: node scripts/select-music.mjs --campaign=<id>"
+  ],
+  "tracks": [
+    {
+      "_comment": "Replace this placeholder with a real track",
+      "id": "placeholder-inspirational-01",
+      "file": "promote/assets/music/placeholder-inspirational-01.mp3",
+      "title": "Example Inspirational Track",
+      "artist": "Unknown",
+      "mood": "inspirational",
+      "energy": "medium",
+      "bpm": 120,
+      "duration_s": 120,
+      "tags": ["uplifting", "corporate", "hopeful"],
+      "source": "Pixabay Music",
+      "license": "Pixabay License",
+      "url": "https://pixabay.com/music/"
+    }
+  ]
+}
