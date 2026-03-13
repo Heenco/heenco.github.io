@@ -249,7 +249,7 @@ const emit = defineEmits<{
 
 // ── UI state ──────────────────────────────────────────────────────────────────
 const isOpen = ref(false)
-const panelWidth = ref(340)
+const panelWidth = ref(360)
 
 function startResize(e: MouseEvent) {
   const startX = e.clientX
@@ -538,7 +538,7 @@ async function runAnalysis() {
   background: hsl(var(--card) / 0.97);
   backdrop-filter: blur(14px);
   border: 1px solid hsl(var(--border));
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   display: flex;
   flex-direction: column;
@@ -551,7 +551,7 @@ async function runAnalysis() {
   width: 5px;
   cursor: ew-resize;
   z-index: 10;
-  border-radius: 12px 0 0 12px;
+  border-radius: 6px 0 0 6px;
   transition: background 0.15s;
 }
 .si-resize-handle:hover, .si-resize-handle:active {
@@ -597,10 +597,11 @@ async function runAnalysis() {
 .si-body::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 2px; }
 
 /* ── Hints ───────────────────────────────────────────────────────────────── */
-.si-hints { display: flex; flex-direction: column; gap: 0.3rem; }
+.si-hints { display: flex; flex-direction: column; gap: 0.5rem; padding: 1.5rem 0.5rem; }
 .si-hint {
   display: flex; align-items: flex-start; gap: 0.4rem;
   font-size: 0.75rem; color: hsl(var(--muted-foreground)); line-height: 1.4;
+  padding: 0.5rem 0;
 }
 .si-hint-dot {
   width: 6px; height: 6px; border-radius: 50%;

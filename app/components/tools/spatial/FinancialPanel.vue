@@ -24,15 +24,7 @@
       <!-- Header -->
       <div class="fp-header">
         <div class="fp-title-wrap">
-          <span class="fp-title">
-            <span class="fp-title-icon">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
-              </svg>
-            </span>
-            Financial Analysis
-          </span>
+          <span class="fp-title">Financial Analysis</span>
           <span class="fp-subtitle">Property &amp; Market Insights</span>
         </div>
         <div class="fp-tabs">
@@ -432,7 +424,7 @@ watch(() => props.point, () => {
   background: hsl(var(--card) / 0.97);
   backdrop-filter: blur(14px);
   border: 1px solid hsl(var(--border));
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   display: flex; flex-direction: column;
   overflow: hidden;
@@ -465,7 +457,6 @@ watch(() => props.point, () => {
 }
 .fp-title-wrap { display: flex; flex-direction: column; margin-right: auto; }
 .fp-title { font-size: 0.85rem; font-weight: 400; color: hsl(var(--foreground)); line-height: 1.1; display: flex; align-items: center; gap: 0.3rem; }
-.fp-title-icon { color: #f59e0b; display: flex; }
 .fp-subtitle { font-size: 0.74rem; color: hsl(var(--muted-foreground)); }
 .fp-tabs { display: flex; gap: 0.15rem; background: hsl(var(--muted)/0.4); border-radius: 6px; padding: 2px; }
 .fp-tab {
@@ -494,7 +485,8 @@ watch(() => props.point, () => {
 .fp-hint {
   display: flex; align-items: center; gap: 0.4rem;
   font-size: 0.76rem; color: hsl(var(--muted-foreground));
-  padding: 0.6rem 0;
+  padding: 2rem 0.5rem 1.5rem;
+  text-align: center; justify-content: center; flex-direction: column;
 }
 
 /* ── Address row ─────────────────────────────────────────────────────────── */
@@ -552,7 +544,7 @@ watch(() => props.point, () => {
 .fp-verdict-ring {
   width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 0.97rem; font-weight: 800;
+  font-size: 0.80rem; font-weight: 500;
   border: 2.5px solid currentColor;
 }
 .fp-verdict-ring--high { color: #22c55e; }

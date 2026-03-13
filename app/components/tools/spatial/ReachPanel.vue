@@ -252,7 +252,7 @@ const emit = defineEmits<{
 
 // ── UI state ──────────────────────────────────────────────────────────────────
 const isOpen     = ref(false)
-const panelWidth = ref(320)
+const panelWidth = ref(360)
 
 function startResize(e: MouseEvent) {
   const startX = e.clientX
@@ -525,6 +525,9 @@ watch(() => props.point, () => {
 </script>
 
 <style scoped>
+/* ── Global ──────────────────────────────────────────────────────────────── */
+:deep(*) { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif; }
+
 /* ── FAB ─────────────────────────────────────────────────────────────────── */
 .rp-fab {
   position: absolute;
@@ -547,7 +550,7 @@ watch(() => props.point, () => {
 .rp-fab-badge {
   position: absolute; top: -4px; right: -4px;
   background: #22c55e; color: #000;
-  font-size: 0.76rem; font-weight: 800;
+  font-size: 0.60rem; font-weight: 500;
   min-width: 16px; height: 16px;
   border-radius: 8px; padding: 0 3px;
   display: flex; align-items: center; justify-content: center;
@@ -562,7 +565,7 @@ watch(() => props.point, () => {
   background: hsl(var(--card) / 0.97);
   backdrop-filter: blur(14px);
   border: 1px solid hsl(var(--border));
-  border-radius: 12px;
+  border-radius: 6px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   display: flex; flex-direction: column;
   overflow: hidden;
@@ -577,7 +580,7 @@ watch(() => props.point, () => {
   width: 5px;
   cursor: ew-resize;
   z-index: 10;
-  border-radius: 12px 0 0 12px;
+  border-radius: 6px 0 0 6px;
   transition: background 0.15s;
 }
 .rp-resize-handle:hover, .rp-resize-handle:active {
@@ -671,8 +674,8 @@ watch(() => props.point, () => {
 .rp-switch--on .rp-switch-thumb { transform: translateX(12px); }
 
 /* ── Hints ───────────────────────────────────────────────────────────────── */
-.rp-hints { display: flex; flex-direction: column; gap: 0.3rem; }
-.rp-hint { display: flex; align-items: center; gap: 0.45rem; font-size: 0.75rem; color: hsl(var(--muted-foreground)); }
+.rp-hints { display: flex; flex-direction: column; gap: 0.5rem; padding: 1.5rem 0.5rem; }
+.rp-hint { display: flex; align-items: center; gap: 0.45rem; font-size: 0.75rem; color: hsl(var(--muted-foreground)); padding: 0.5rem 0; }
 .rp-hint-dot { width: 6px; height: 6px; border-radius: 50%; background: hsl(var(--muted-foreground)/0.5); flex-shrink: 0; }
 
 /* ── Point pill ──────────────────────────────────────────────────────────── */
@@ -713,9 +716,9 @@ watch(() => props.point, () => {
 .rp-score-circle--high { border-color: #22c55e; background: #22c55e1a; }
 .rp-score-circle--med  { border-color: #f59e0b; background: #f59e0b1a; }
 .rp-score-circle--low  { border-color: #ef4444; background: #ef44441a; }
-.rp-score-num { font-size: 1.45rem; font-weight: 800; color: hsl(var(--foreground)); }
+.rp-score-num { font-size: 1.1rem; font-weight: 500; color: hsl(var(--foreground)); }
 .rp-score-info { display: flex; flex-direction: column; gap: 0.1rem; }
-.rp-score-label { font-size: 0.85rem; font-weight: 700; color: hsl(var(--foreground)); }
+.rp-score-label { font-size: 0.85rem; font-weight: 400; color: hsl(var(--foreground)); }
 .rp-score-sub { font-size: 0.74rem; color: hsl(var(--muted-foreground)); }
 
 /* ── Category rows ───────────────────────────────────────────────────────── */
@@ -730,7 +733,7 @@ watch(() => props.point, () => {
 .rp-cat-swatch { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .rp-cat-name { flex: 1; color: hsl(var(--foreground)); }
 .rp-cat-badge {
-  font-size: 0.74rem; font-weight: 700;
+  font-size: 0.74rem; font-weight: 500;
   padding: 0.08rem 0.35rem; border-radius: 20px;
 }
 .rp-cat-badge--high   { background: #22c55e22; color: #16a34a; }

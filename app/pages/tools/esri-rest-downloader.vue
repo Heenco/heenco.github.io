@@ -672,6 +672,39 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
+
+      <!-- ── Basemap selector ────────────────────────────────────────── -->
+      <button class="er-basemap-btn" @click="openBasemapMenu" title="Switch basemap">
+        <img :src="getBasemapPreviewUrl(getNextBasemapId())" alt="Switch basemap" class="er-basemap-thumbnail" />
+      </button>
+
+      <!-- Basemap modal -->
+      <div v-if="showBasemapMenu" class="er-basemap-overlay" @click="showBasemapMenu = false">
+        <div class="er-basemap-modal" @click.stop>
+          <div class="er-basemap-header">
+            <div>
+              <h3>Map type</h3>
+              <p class="er-basemap-subtitle">Select a style to use for your map.</p>
+            </div>
+          </div>
+          <div class="er-basemap-grid">
+            <div
+              v-for="bm in basemaps"
+              :key="bm.id"
+              class="er-basemap-card"
+              :class="{ active: selectedBasemap === bm.id }"
+              @click="selectBasemap(bm)"
+            >
+              <div class="er-basemap-preview" :style="{ backgroundImage: `url(${getBasemapThumbnail(bm.previewTemplate)})` }"></div>
+              <span class="er-basemap-name">{{ bm.name }}</span>
+            </div>
+          </div>
+          <div class="er-basemap-footer">
+            <button @click="showBasemapMenu = false" class="er-modal-btn er-modal-btn--cancel">Cancel</button>
+            <button @click="applyBasemap" class="er-modal-btn er-modal-btn--confirm">Continue</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ── Layers FAB (right, when panel collapsed) ──────────────────────────── -->
@@ -771,6 +804,14 @@
       @openChange="financialOpen = $event"
     />
 
+    <GeometryInspectorPanel
+      :selectedFeature="giSelectedFeature"
+      :clickMsg="giClickMsg"
+      :financialBotPx="financialFabBotPx"
+      :hidden="siOpen || reachOpen || financialOpen"
+      @openChange="giOpen = $event"
+    />
+
   </div>
 </template>
 
@@ -782,7 +823,9 @@ import USwitch from '~/components/ui/Switch.vue'
 import SpatialIntelligencePanel from '~/components/tools/spatial/SpatialIntelligencePanel.vue'
 import ReachPanel from '~/components/tools/spatial/ReachPanel.vue'
 import FinancialPanel from '~/components/tools/spatial/FinancialPanel.vue'
+import GeometryInspectorPanel from '~/components/tools/spatial/GeometryInspectorPanel.vue'
 import { ESRI_LIBRARY } from '~/config/esriLibrary'
+import type { Feature } from 'geojson'
 
 const config = useRuntimeConfig()
 const { viewCount } = usePageViews()
@@ -1025,6 +1068,9 @@ function handleGeoClickOutside(e: MouseEvent) {
 const MAPLIBRE_CSS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'
 const MAPLIBRE_JS  = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'
 let map: any = null
+let activeLayerGeojson: any = null
+let currentIsoGeojson: any = null
+let currentReachPoiLayers: Record<string, { color: string; geojson: any }> | null = null
 
 const loadScript = (src: string): Promise<void> =>
   new Promise((resolve, reject) => {
@@ -1119,6 +1165,10 @@ interface PinnedLayer {
   queuedLayerName: string
   pending: boolean       // true = background fetch in progress
   fetchError: string     // non-empty if the background fetch failed
+  geojson?: any          // cached GeoJSON for basemap style-reload restoration
+  // Dynamic pagination state (not serialized)
+  loadedOids: Set<number | string>   // dedup set for OIDs already fetched
+  accumulatedFeatures: any[]         // features accumulated during pan expansions
 }
 let   pinCounter        = 0
 let   activeGeomCategory: 'polygon' | 'line' | 'point' = 'point'
@@ -1126,6 +1176,12 @@ let   activeRenderer: any = null
 let   activeGeomType      = ''
 const pinnedLayers      = ref<PinnedLayer[]>([])
 const showLayers        = ref(true)
+const showBasemapMenu   = ref(false)
+const currentBasemap    = ref('dark-matter')
+const selectedBasemap   = ref('dark-matter')
+
+// ── Pagination tracking per pinned layer ──
+const pinnedLayerPaginationToken = new Map<string, number>()
 
 const spatialSearchPoint = computed(() => geoSearchPoint.value)
 const spatialBufferMeters = ref(25)
@@ -1149,12 +1205,22 @@ let _bufferHandlersInit = false
 const siOpen       = ref(false)
 const reachOpen    = ref(false)
 const financialOpen = ref(false)
+const giOpen       = ref(false)
+const giSelectedFeature = ref<Feature | null>(null)
+const giClickMsg   = ref('')
+
+// Change cursor to crosshair when GI is open (signals "click-to-select" mode)
+watch(giOpen, (open) => {
+  if (!map) return
+  map.getCanvas().style.cursor = open ? 'crosshair' : ''
+})
 const siFabBotPx = computed(() => {
   if (layersPanelBottom.value) return layersPanelBottom.value + 8 + 40
   if (pinnedLayers.value.length > 0 && !showLayers.value) return 16 + 48 + 40
   return 16 + 40
 })
-const reachFabBotPx = computed(() => siFabBotPx.value + 8 + 40)
+const reachFabBotPx     = computed(() => siFabBotPx.value + 8 + 40)
+const financialFabBotPx = computed(() => reachFabBotPx.value + 8 + 40)
 
 function setLayersPanelRef(el: HTMLElement | null) {
   _panelRO?.disconnect()
@@ -1176,6 +1242,7 @@ watch([spatialSearchPoint, spatialBufferMeters], ([pt, buf]) => {
 const reachPoiCatIds = ref<string[]>([])
 
 function onIsochroneGeoJSON(geojson: any | null) {
+  currentIsoGeojson = geojson
   if (!map) return
   if (!geojson) {
     if (map.getLayer('er-iso-fill'))   map.removeLayer('er-iso-fill')
@@ -1195,6 +1262,7 @@ function onIsochroneGeoJSON(geojson: any | null) {
 let reachPopup: any = null
 
 function onPoisUpdate(layers: Record<string, { color: string; geojson: any }> | null) {
+  currentReachPoiLayers = layers
   if (!map) return
   const ml = (window as any).maplibregl
   // Tear down old popup
@@ -1811,6 +1879,8 @@ const addToQueue = async (
     queuedLayerName: layerName,
     pending: true,
     fetchError: '',
+    loadedOids: new Set(),
+    accumulatedFeatures: [],
   })
   showLayers.value = true
 
@@ -1888,6 +1958,11 @@ const addToQueue = async (
   entry.featureCount = features.length
   entry.queued       = true
   entry.pending      = false
+  entry.accumulatedFeatures = features
+  entry.loadedOids   = new Set(features.map(f => {
+    const p = f.properties ?? {}
+    return p.OBJECTID ?? p.objectid ?? p.FID ?? p.fid ?? p.OID ?? p.oid ?? null
+  }).filter(oid => oid !== null))
 
   // Add map preview if we got features
   if (features.length > 0 && !map.getSource(sourceId)) {
@@ -1906,6 +1981,7 @@ const addToQueue = async (
       layerIds.push(`${sourceId}-circle`)
     }
     entry.mapLayerIds = layerIds
+    entry.geojson = geojson
   }
 }
 
@@ -2199,6 +2275,7 @@ const loadLayerPreview = async (isInitial = false) => {
     }
 
     map.addSource('er-layer', { type: 'geojson', data: geojson })
+    activeLayerGeojson = geojson
 
     const renderer = meta?.drawingInfo?.renderer ?? null
     const paint    = rendererToMapPaint(renderer, geomType, serviceTypeColor(activeLayer.value.svcType))
@@ -2256,7 +2333,9 @@ const loadLayerPreview = async (isInitial = false) => {
         layerFeatureCount.value = allFeatures.length
 
         // Append to map source in-place — no flicker, no layer removal
-        ;(map.getSource('er-layer') as any)?.setData({ type: 'FeatureCollection', features: allFeatures })
+        const _pageData = { type: 'FeatureCollection' as const, features: allFeatures }
+        activeLayerGeojson = _pageData
+        ;(map.getSource('er-layer') as any)?.setData(_pageData)
 
         if (!page.exceededTransferLimit) break
         offset += 1000
@@ -2276,11 +2355,19 @@ const loadLayerPreview = async (isInitial = false) => {
 // only features not already loaded (deduped by OBJECTID / FID / OID).
 let moveTimer: ReturnType<typeof setTimeout> | null = null
 const onMapMoveEnd = () => {
-  if (!mapLayerKey.value) return
-  // Only expand when a layer is fully loaded (or paginating) — not during initial load
-  if (layerStatus.value !== 'loaded' && layerStatus.value !== 'error') return
   if (moveTimer) clearTimeout(moveTimer)
-  moveTimer = setTimeout(() => expandLayerPreview(), 800)
+  moveTimer = setTimeout(() => {
+    // Expand active preview layer if one is shown
+    if (mapLayerKey.value && (layerStatus.value === 'loaded' || layerStatus.value === 'error')) {
+      expandLayerPreview()
+    }
+    // Expand all visible pinned layers
+    for (const layer of pinnedLayers.value) {
+      if (layer.visible && layer.queued) {
+        expandPinnedLayer(layer.id)
+      }
+    }
+  }, 800)
 }
 
 const expandLayerPreview = async () => {
@@ -2303,11 +2390,10 @@ const expandLayerPreview = async () => {
     geometry: bboxGeom, geometryType: 'esriGeometryEnvelope', inSR: '4326',
   }
 
-  // Get the current accumulated features from the source
+  // Get the current accumulated features from our own cache (more reliable than source._data)
   const source = map.getSource('er-layer') as any
   if (!source) { layerPaginating.value = false; return }
-  const currentData = source._data as { type: string; features: any[] }
-  const allFeatures: any[] = currentData?.features ? [...currentData.features] : []
+  const allFeatures: any[] = activeLayerGeojson?.features ? [...activeLayerGeojson.features] : []
 
   const oidKey = (f: any): number | string | null => {
     const p = f.properties ?? {}
@@ -2327,7 +2413,9 @@ const expandLayerPreview = async () => {
     }
     if (added > 0) {
       layerFeatureCount.value = allFeatures.length
-      source.setData({ type: 'FeatureCollection', features: allFeatures })
+      const _expData = { type: 'FeatureCollection' as const, features: allFeatures }
+      activeLayerGeojson = _expData
+      source.setData(_expData)
     }
   }
 
@@ -2349,6 +2437,80 @@ const expandLayerPreview = async () => {
 
   if (myToken === previewToken) layerPaginating.value = false
 }
+
+// Expand a pinned layer to include features in the new map bbox
+const expandPinnedLayer = async (layerId: string) => {
+  const layer = pinnedLayers.value.find(l => l.id === layerId)
+  if (!layer || !map) return
+
+  // Get or create pagination token for this layer
+  if (!pinnedLayerPaginationToken.has(layerId)) {
+    pinnedLayerPaginationToken.set(layerId, 0)
+  }
+  const myToken = (pinnedLayerPaginationToken.get(layerId) ?? 0) + 1
+  pinnedLayerPaginationToken.set(layerId, myToken)
+
+  const bounds = map.getBounds()
+  const bboxGeom = JSON.stringify({
+    xmin: bounds.getWest(), ymin: bounds.getSouth(),
+    xmax: bounds.getEast(), ymax: bounds.getNorth(),
+  })
+
+  const baseParams: Record<string, string> = {
+    where: '1=1', outSR: '4326', outFields: '*',
+    resultRecordCount: '1000', returnGeometry: 'true', f: 'json',
+  }
+  const bboxParams = {
+    geometry: bboxGeom, geometryType: 'esriGeometryEnvelope', inSR: '4326',
+  }
+
+  // Get the layer source and accumulated features
+  const source = map.getSource(layerId) as any
+  if (!source) return
+  const allFeatures = layer.accumulatedFeatures ? [...layer.accumulatedFeatures] : []
+
+  const oidKey = (f: any): number | string | null => {
+    const p = f.properties ?? {}
+    return p.OBJECTID ?? p.objectid ?? p.FID ?? p.fid ?? p.OID ?? p.oid ?? null
+  }
+
+  const appendPage = (features: any[]) => {
+    let added = 0
+    for (const f of features) {
+      const oid = oidKey(f)
+      if (oid !== null) {
+        if (layer.loadedOids.has(oid)) continue
+        layer.loadedOids.add(oid)
+      }
+      allFeatures.push(f)
+      added++
+    }
+    if (added > 0) {
+      layer.featureCount = allFeatures.length
+      layer.accumulatedFeatures = allFeatures
+      const _expData = { type: 'FeatureCollection' as const, features: allFeatures }
+      layer.geojson = _expData
+      source.setData(_expData)
+    }
+  }
+
+  try {
+    let offset = 0
+    while (true) {
+      if ((pinnedLayerPaginationToken.get(layerId) ?? 0) !== myToken) return  // cancelled
+      const page = await esriFetch(layer.queuedLayerUrl + '/query', {
+        ...baseParams, ...bboxParams,
+        resultOffset: String(offset),
+      })
+      if ((pinnedLayerPaginationToken.get(layerId) ?? 0) !== myToken) return  // cancelled
+      if (!page?.features?.length) break
+      appendPage(esriJsonToGeoJSON(page).features)
+      if (!page.exceededTransferLimit) break
+      offset += 1000
+    }
+  } catch { /* silently ignore expand errors */ }
+}
+
 
 // Compute bbox [minLng, minLat, maxLng, maxLat] from a GeoJSON FeatureCollection
 // Using iterative reduce to avoid call-stack overflow on large datasets
@@ -2380,6 +2542,7 @@ const clearMapLayer = () => {
     if (map.getLayer(id)) map.removeLayer(id)
   })
   if (map.getSource('er-layer')) map.removeSource('er-layer')
+  activeLayerGeojson = null
   loadedOids = new Set()  // reset accumulated OID set
 }
 
@@ -2391,6 +2554,7 @@ const removePinnedLayer = (id: string) => {
     for (const lid of layer.mapLayerIds) { if (map.getLayer(lid)) map.removeLayer(lid) }
     if (map.getSource(id)) map.removeSource(id)
   }
+  pinnedLayerPaginationToken.delete(id)
   pinnedLayers.value = pinnedLayers.value.filter(l => l.id !== id)
 }
 
@@ -2687,6 +2851,8 @@ const downloadGeoParquet = async () => {
           queuedLayerName: activeLayer.value?.layerName ?? '',
           pending: false,
           fetchError: '',
+          loadedOids: new Set(),
+          accumulatedFeatures: [],
         }
 
         map.addSource(sourceId, { type: 'geojson', data: geojson })
@@ -2703,8 +2869,15 @@ const downloadGeoParquet = async () => {
           entry.mapLayerIds = [`${sourceId}-circle`]
         }
 
+        entry.geojson = geojson
         pinnedLayers.value.push(entry)
         showLayers.value = true
+        // Initialize tracking state for dynamic expansion on pan
+        entry.accumulatedFeatures = allFeatures
+        entry.loadedOids = new Set(allFeatures.map(f => {
+          const p = f.properties ?? {}
+          return p.OBJECTID ?? p.objectid ?? p.FID ?? p.fid ?? p.OID ?? p.oid ?? null
+        }).filter(oid => oid !== null))
       }
     } catch { /* map additions are non-fatal */ }
   } catch (e: any) {
@@ -2715,6 +2888,164 @@ const downloadGeoParquet = async () => {
       downloadStatus.value = 'error'
     }
   }
+}
+
+// ── Basemap definitions ───────────────────────────────────────────────────────
+const basemaps = [
+  { id: 'dark-matter', name: 'Dark Matter', style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json', previewTemplate: 'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png' },
+  { id: 'voyager',    name: 'Voyager',     style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',      previewTemplate: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png' },
+  { id: 'positron',   name: 'Positron',    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',     previewTemplate: 'https://a.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png' },
+]
+
+const toTileCoords = (lng: number, lat: number, zoom: number) => {
+  const n = 2 ** zoom
+  const x = Math.floor(((lng + 180) / 360) * n)
+  const latRad = (lat * Math.PI) / 180
+  const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n)
+  return { x, y }
+}
+
+const getBasemapThumbnail = (templateUrl: string) => {
+  const zoom = 11
+  const { x, y } = toTileCoords(151.2093, -33.8688, zoom)
+  return templateUrl.replace('{z}', String(zoom)).replace('{x}', String(x)).replace('{y}', String(y))
+}
+
+const getBasemapPreviewUrl = (id: string) => {
+  const bm = basemaps.find(b => b.id === id)
+  return bm ? getBasemapThumbnail(bm.previewTemplate) : ''
+}
+
+const getNextBasemapId = () => {
+  const idx = basemaps.findIndex(b => b.id === currentBasemap.value)
+  return basemaps[(idx + 1) % basemaps.length].id
+}
+
+const openBasemapMenu = () => {
+  selectedBasemap.value = currentBasemap.value
+  showBasemapMenu.value = true
+}
+
+const selectBasemap = (bm: (typeof basemaps)[0]) => {
+  selectedBasemap.value = bm.id
+}
+
+const applyBasemap = () => {
+  if (map && currentBasemap.value !== selectedBasemap.value) {
+    const bm = basemaps.find(b => b.id === selectedBasemap.value)
+    if (bm) {
+      map.once('idle', restoreMapLayers)
+      map.setStyle(bm.style)
+      currentBasemap.value = selectedBasemap.value
+    }
+  }
+  showBasemapMenu.value = false
+}
+
+// ── Restore all map layers after setStyle wipes them ─────────────────────────
+function restoreMapLayers() {
+  if (!map) return
+
+  // Active preview layer
+  if (activeLayerGeojson) {
+    try {
+      map.addSource('er-layer', { type: 'geojson', data: activeLayerGeojson })
+      const fallback = activeLayer.value ? serviceTypeColor(activeLayer.value.svcType) : '#10b981'
+      const paint = rendererToMapPaint(activeRenderer, activeGeomType, fallback)
+      if (activeGeomCategory === 'polygon') {
+        map.addLayer({ id: 'er-layer-fill',   type: 'fill',   source: 'er-layer', paint: paint.fill })
+        map.addLayer({ id: 'er-layer-line',   type: 'line',   source: 'er-layer', paint: paint.line })
+      } else if (activeGeomCategory === 'line') {
+        map.addLayer({ id: 'er-layer-line',   type: 'line',   source: 'er-layer', paint: paint.line })
+      } else {
+        map.addLayer({ id: 'er-layer-circle', type: 'circle', source: 'er-layer', paint: paint.circle })
+      }
+    } catch (e) { console.warn('[basemap] failed to restore active layer:', e) }
+  }
+
+  // Pinned layers
+  for (const entry of pinnedLayers.value) {
+    if (!entry.geojson || entry.mapLayerIds.length === 0) continue
+    try {
+      map.addSource(entry.id, { type: 'geojson', data: entry.geojson })
+      for (const lid of entry.mapLayerIds) {
+        if (lid.endsWith('-fill'))   map.addLayer({ id: lid, type: 'fill',   source: entry.id, paint: entry.paint.fill })
+        else if (lid.endsWith('-line'))   map.addLayer({ id: lid, type: 'line',   source: entry.id, paint: entry.paint.line })
+        else if (lid.endsWith('-circle')) map.addLayer({ id: lid, type: 'circle', source: entry.id, paint: entry.paint.circle })
+        if (!entry.visible) map.setLayoutProperty(lid, 'visibility', 'none')
+      }
+    } catch (e) { console.warn('[basemap] failed to restore pinned layer', entry.id, ':', e) }
+  }
+
+  // Geo search marker + buffer (re-derived from reactive state)
+  const pt = geoSearchPoint.value
+  if (pt) {
+    placeGeoMarker(pt.lng, pt.lat)
+    if (spatialBufferMeters.value > 0) {
+      _bufferHandlersInit = false
+      placeBufferCircle(pt.lng, pt.lat, spatialBufferMeters.value)
+    }
+  }
+
+  // Isochrone
+  if (currentIsoGeojson) {
+    try {
+      map.addSource('er-iso', { type: 'geojson', data: currentIsoGeojson })
+      map.addLayer({ id: 'er-iso-fill',   type: 'fill', source: 'er-iso', paint: { 'fill-color': '#6366f1', 'fill-opacity': 0.07 } })
+      map.addLayer({ id: 'er-iso-stroke', type: 'line', source: 'er-iso', paint: { 'line-color': '#6366f1', 'line-width': 1.5, 'line-opacity': 0.6 } })
+    } catch (e) { console.warn('[basemap] failed to restore isochrone:', e) }
+  }
+
+  // Reach POI layers
+  if (currentReachPoiLayers) {
+    onPoisUpdate(currentReachPoiLayers)
+  }
+}
+
+// ── Geometry Inspector Polygon Click Handler ──────────────────────────────
+const getPolygonLayerIds = () => {
+  if (!map) return [] as string[]
+  const ids: string[] = []
+  if (map.getLayer('er-layer-fill')) ids.push('er-layer-fill')
+  if (map.getLayer('er-layer-line')) ids.push('er-layer-line')
+  for (const layer of pinnedLayers.value) {
+    if (!layer.visible || layer.geomCategory !== 'polygon') continue
+    for (const id of layer.mapLayerIds ?? []) {
+      if (map.getLayer(id)) ids.push(id)
+    }
+  }
+  return ids
+}
+
+const onMapClick = (e: any) => {
+  if (!map) return
+  if (!giOpen.value) return
+
+  // Prefer our own polygon layers; fall back to all rendered features
+  const polygonLayerIds = getPolygonLayerIds()
+  const features = polygonLayerIds.length
+    ? map.queryRenderedFeatures(e.point, { layers: polygonLayerIds })
+    : map.queryRenderedFeatures(e.point)
+
+  if (!features || features.length === 0) {
+    giClickMsg.value = 'No features found at click point — make sure a polygon layer is visible'
+    return
+  }
+
+  // Find the first polygon feature and deep-copy it to avoid MapLibre Proxy issues
+  for (const feature of features) {
+    if (feature.geometry && (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')) {
+      try {
+        giSelectedFeature.value = JSON.parse(JSON.stringify(feature)) as Feature
+        giClickMsg.value = ''
+      } catch {
+        giClickMsg.value = 'Failed to read feature geometry'
+      }
+      return
+    }
+  }
+
+  giClickMsg.value = `${features.length} feature(s) found but none are polygons (found: ${[...new Set(features.map((f: any) => f.geometry?.type ?? 'unknown'))].join(', ')})`
 }
 
 // ── Map init ──────────────────────────────────────────────────────────────────
@@ -2731,6 +3062,7 @@ const initMap = () => {
   })
 
   map.on('moveend', onMapMoveEnd)
+  map.on('click', onMapClick)
 }
 
 onMounted(() => {
@@ -2815,6 +3147,22 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
+/* ── Prevent text selection on interactive elements ──────────────────── */
+.er-page button,
+.er-page input,
+.er-page svg,
+.er-page [class*="-btn"],
+.er-page [class*="-chevron"],
+.er-page [class*="-icon"],
+.er-fab,
+.er-search,
+.er-label {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
 /* ── Layout ──────────────────────────────────────────────────────────────── */
 .er-page {
   position: relative;
@@ -3842,7 +4190,7 @@ onUnmounted(() => {
 .er-hud {
   position: absolute;
   bottom: 0.75rem;
-  right: 0.75rem;
+  right: calc(16px + 64px + 10px);
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -4482,4 +4830,105 @@ onUnmounted(() => {
 
 /* ── Filename prompt modal (slim variant) ───────────────────────────────── */
 .er-modal--sm { max-width: 380px; }
+
+/* ── Basemap selector ────────────────────────────────────────────────────── */
+.er-basemap-btn {
+  position: absolute;
+  bottom: 24px;
+  right: 16px;
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.15), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  cursor: pointer;
+  padding: 0;
+  z-index: 10;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+}
+.er-basemap-btn:hover { transform: scale(1.05); box-shadow: 0 6px 10px -2px rgb(0 0 0 / 0.2); }
+.er-basemap-thumbnail { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 9px; }
+
+.er-basemap-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: er-fade-in 0.2s ease;
+}
+@keyframes er-fade-in { from { opacity: 0 } to { opacity: 1 } }
+
+.er-basemap-modal {
+  background: hsl(var(--background));
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  max-width: 560px;
+  width: 90%;
+  overflow: hidden;
+  animation: er-slide-up 0.25s ease;
+}
+@keyframes er-slide-up { from { transform: translateY(16px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+
+.er-basemap-header { padding: 20px 20px 12px; }
+.er-basemap-header h3 { font-size: 1.2rem; font-weight: 500; color: hsl(var(--foreground)); margin: 0 0 4px; }
+.er-basemap-subtitle { font-size: 0.8rem; color: hsl(var(--muted-foreground)); margin: 0; }
+
+.er-basemap-grid {
+  display: flex;
+  gap: 12px;
+  padding: 4px 20px 20px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.er-basemap-grid::-webkit-scrollbar { height: 4px; }
+.er-basemap-grid::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 2px; }
+
+.er-basemap-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.er-basemap-card:hover .er-basemap-preview { transform: scale(1.04); }
+.er-basemap-card.active .er-basemap-preview { border-color: hsl(var(--foreground)); border-width: 3px; }
+
+.er-basemap-preview {
+  width: 90px;
+  height: 90px;
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+  border: 2px solid hsl(var(--border));
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.er-basemap-name { font-size: 0.75rem; color: hsl(var(--foreground)); text-align: center; }
+
+.er-basemap-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid hsl(var(--border));
+}
+.er-modal-btn {
+  padding: 8px 20px;
+  border-radius: 7px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.er-modal-btn--cancel { background: transparent; color: hsl(var(--foreground)); }
+.er-modal-btn--cancel:hover { background: hsl(var(--accent)); }
+.er-modal-btn--confirm { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+.er-modal-btn--confirm:hover { opacity: 0.88; }
 </style>
