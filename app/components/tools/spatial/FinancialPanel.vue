@@ -444,13 +444,13 @@ watch(() => props.point, () => {
 /* ── Header ──────────────────────────────────────────────────────────────── */
 .fp-header {
   display: flex; align-items: center; gap: 0.4rem;
-  padding: 0.5rem 0.65rem 0.35rem;
+  padding: 1rem 1rem 0.75rem;
   border-bottom: 1px solid hsl(var(--border));
   flex-shrink: 0;
 }
-.fp-title-wrap { display: flex; flex-direction: column; margin-right: auto; }
-.fp-title { font-size: 0.85rem; font-weight: 400; color: hsl(var(--foreground)); line-height: 1.1; display: flex; align-items: center; gap: 0.3rem; }
-.fp-subtitle { font-size: 0.74rem; color: hsl(var(--muted-foreground)); }
+.fp-title-wrap { display: flex; flex-direction: column; gap: 0.1rem; margin-right: auto; }
+.fp-title { font-size: 0.9rem; font-weight: 600; color: hsl(var(--foreground)); line-height: 1.1; display: flex; align-items: center; gap: 0.3rem; }
+.fp-subtitle { font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
 .fp-tabs { display: flex; gap: 0.15rem; background: hsl(var(--muted)/0.4); border-radius: 6px; padding: 2px; }
 .fp-tab {
   font-size: 0.77rem; font-weight: 500; padding: 0.18rem 0.55rem;
@@ -460,12 +460,12 @@ watch(() => props.point, () => {
 .fp-tab:hover { background: hsl(var(--muted) / 0.5); }
 .fp-tab--on { background: hsl(var(--card)); color: hsl(var(--foreground)); box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
 .fp-close {
-  width: 22px; height: 22px; border-radius: 50%; border: none;
+  width: 28px; height: 28px; border-radius: 6px; border: none;
   background: transparent; cursor: pointer;
   color: hsl(var(--muted-foreground)); display: flex; align-items: center; justify-content: center;
-  transition: background 0.12s;
+  transition: background 0.15s, color 0.15s;
 }
-.fp-close:hover { background: hsl(var(--muted)); }
+.fp-close:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
 
 /* ── Body ────────────────────────────────────────────────────────────────── */
 .fp-body {

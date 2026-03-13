@@ -366,45 +366,47 @@ watch(
 /* ─── Header ─────────────────────────────────────────────────────────────── */
 .gi-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem;
-  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  gap: 0.4rem;
+  padding: 1rem 1rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--border));
 }
 
 .gi-title-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.1rem;
 }
 
 .gi-title {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: hsl(var(--foreground));
+  line-height: 1.1;
 }
 
 .gi-subtitle {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: hsl(var(--muted-foreground));
 }
 
 .gi-close {
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
+  border-radius: 6px;
   color: hsl(var(--muted-foreground));
   cursor: pointer;
-  transition: color 0.15s;
+  transition: background 0.15s, color 0.15s;
   user-select: none;
   -webkit-user-select: none;
-  &:hover { color: hsl(var(--foreground)); }
+  &:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
 }
 
 /* ─── Body ──────────────────────────────────────────────────────────────── */

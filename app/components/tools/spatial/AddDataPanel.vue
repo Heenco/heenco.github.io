@@ -77,6 +77,15 @@
               <span class="ad-file-name">{{ f.name }}</span>
               <span class="ad-file-meta">{{ f.featureCount.toLocaleString() }} features · {{ f.geomCategory }}</span>
             </div>
+            <button class="ad-file-remove" title="Remove from map" @click="removeLoadedFile(f.id)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -104,6 +113,7 @@ const emit = defineEmits<{
     geojson: { type: 'FeatureCollection'; features: any[] }
     color: string
   }]
+  layerRemoved: [id: string]
 }>()
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -120,6 +130,10 @@ interface LoadedFile {
   featureCount: number
   geomCategory: 'polygon' | 'line' | 'point'
   color: string
+  fileKey: string
+  geoExpr: string
+  geoCol: string
+  propCols: string[]
 }
 const loadedFiles = ref<LoadedFile[]>([])
 
@@ -138,6 +152,15 @@ watch(isOpen, v => emit('openChange', v))
 watch(() => props.open, v => {
   if (typeof v === 'boolean' && v !== isOpen.value) isOpen.value = v
 })
+
+function removeLoadedFile(id: string) {
+  const entry = loadedFiles.value.find(f => f.id === id)
+  loadedFiles.value = loadedFiles.value.filter(f => f.id !== id)
+  if (entry?.fileKey) {
+    _db?.dropFile(entry.fileKey).catch(() => {})
+  }
+  emit('layerRemoved', id)
+}
 
 // ── Colours ───────────────────────────────────────────────────────────────────
 const PALETTE: string[] = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6']
@@ -196,28 +219,40 @@ async function loadFile(file: File) {
   isLoading.value = true
   loadingLabel.value = 'Initialising DuckDB…'
 
+  let fileKey = ''
+  let keepFile = false
   try {
     const db   = await getDuckDB()
     const conn = await getConn()
 
-    // Re-register on every load (terminate old state for re-use)
-    try { await db.dropFile('input.parquet') } catch { /* ok if no prior */ }
+    // Register with a unique name to avoid stale VFS state across loads
+    fileKey = `input-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.parquet`
     loadingLabel.value = 'Reading file…'
     const buf = await file.arrayBuffer()
-    await db.registerFileBuffer('input.parquet', new Uint8Array(buf))
+    await db.registerFileBuffer(fileKey, new Uint8Array(buf))
 
     // Detect columns
     loadingLabel.value = 'Detecting geometry…'
-    const descRes = await conn.query(`DESCRIBE SELECT * FROM read_parquet('input.parquet') LIMIT 0`)
+    const descRes = await conn.query(`DESCRIBE SELECT * FROM read_parquet('${fileKey}') LIMIT 0`)
     const descRows = descRes.toArray()
 
     let geoCol: string | null = null
+    let geoType = ''
+    const otherCols: string[] = []
     for (const row of descRows) {
       const name = String(row.column_name ?? row.Field ?? '')
       const type = String(row.column_type ?? row.Type ?? '')
       if (GEO_NAMES.has(name.toLowerCase()) || RX_GEOMETRY.test(type)) {
         geoCol = name
+        geoType = type
         break
+      }
+    }
+
+    if (geoCol) {
+      for (const row of descRows) {
+        const name = String(row.column_name ?? row.Field ?? '')
+        if (name && name !== geoCol) otherCols.push(`"${name}"`)
       }
     }
 
@@ -228,15 +263,23 @@ async function loadFile(file: File) {
 
     // Count features
     loadingLabel.value = 'Counting features…'
-    const countRes = await conn.query(`SELECT COUNT(*) AS n FROM read_parquet('input.parquet') WHERE "${geoCol}" IS NOT NULL`)
+    const countRes = await conn.query(`SELECT COUNT(*) AS n FROM read_parquet('${fileKey}') WHERE "${geoCol}" IS NOT NULL`)
     const total = Number(countRes.toArray()[0]?.n ?? 0)
 
     // Extract GeoJSON (limit to 20k features for performance)
     loadingLabel.value = 'Extracting features…'
     const LIMIT = 20_000
+    const rawType = geoType.toUpperCase()
+    const geoExpr = rawType === 'GEOMETRY'
+      ? `"${geoCol}"`
+      : (rawType === 'VARCHAR' || rawType === 'TEXT')
+        ? `ST_GeomFromText("${geoCol}")`
+        : `ST_GeomFromWKB("${geoCol}")`
+
+    const propColsSql = otherCols.length ? `, ${otherCols.join(', ')}` : ''
     const geoRes = await conn.query(
-      `SELECT ST_AsGeoJSON(ST_GeomFromWKB("${geoCol}")) AS _geom
-       FROM read_parquet('input.parquet')
+      `SELECT ST_AsGeoJSON(${geoExpr}) AS _geom${propColsSql}
+       FROM read_parquet('${fileKey}')
        WHERE "${geoCol}" IS NOT NULL
        LIMIT ${LIMIT}`
     )
@@ -246,11 +289,22 @@ async function loadFile(file: File) {
     let geomCategory: 'polygon' | 'line' | 'point' = 'point'
     let geomTypeSeen = ''
 
+    const normalizeValue = (value: unknown) => {
+      if (typeof value === 'bigint') {
+        const asNumber = Number(value)
+        return Number.isSafeInteger(asNumber) ? asNumber : value.toString()
+      }
+      return value
+    }
+
     for (const row of rows) {
       try {
         const geom = JSON.parse(String(row._geom ?? '{}'))
         if (!geomTypeSeen && geom.type) geomTypeSeen = geom.type
-        features.push({ type: 'Feature', geometry: geom, properties: {} })
+        const { _geom, ...props } = row as Record<string, unknown>
+        const safeProps: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(props)) safeProps[k] = normalizeValue(v)
+        features.push({ type: 'Feature', geometry: geom, properties: safeProps })
       } catch { /* skip malformed */ }
     }
 
@@ -269,7 +323,18 @@ async function loadFile(file: File) {
     const id    = `ad-local-${Date.now()}`
     const label = file.name.replace(/\.parquet$/i, '')
 
-    loadedFiles.value.push({ id, name: label, featureCount: features.length, geomCategory, color })
+    loadedFiles.value.push({
+      id,
+      name: label,
+      featureCount: features.length,
+      geomCategory,
+      color,
+      fileKey,
+      geoExpr,
+      geoCol,
+      propCols: otherCols,
+    })
+    keepFile = true
 
     emit('layerLoaded', {
       id,
@@ -283,10 +348,58 @@ async function loadFile(file: File) {
   } catch (err: any) {
     loadError.value = err?.message ?? 'Failed to load file'
   } finally {
+    if (fileKey && !keepFile) {
+      try { await _db?.dropFile(fileKey) } catch { /* best effort */ }
+    }
     isLoading.value = false
     loadingLabel.value = 'Loading…'
   }
 }
+
+async function appendLocalLayer(id: string, bbox: [number, number, number, number], limit = 5000) {
+  const entry = loadedFiles.value.find(f => f.id === id)
+  if (!entry) return [] as any[]
+  const conn = await getConn()
+
+  const [w, s, e, n] = bbox
+  if (![w, s, e, n].every(v => Number.isFinite(v))) return [] as any[]
+
+  const propColsSql = entry.propCols.length ? `, ${entry.propCols.join(', ')}` : ''
+
+  const normalizeValue = (value: unknown) => {
+    if (typeof value === 'bigint') {
+      const asNumber = Number(value)
+      return Number.isSafeInteger(asNumber) ? asNumber : value.toString()
+    }
+    return value
+  }
+
+  try {
+    const res = await conn.query(
+      `SELECT ST_AsGeoJSON(${entry.geoExpr}) AS _geom${propColsSql}
+       FROM read_parquet('${entry.fileKey}')
+       WHERE "${entry.geoCol}" IS NOT NULL
+         AND ST_Intersects(${entry.geoExpr}, ST_MakeEnvelope(${w}, ${s}, ${e}, ${n}))
+       LIMIT ${limit}`
+    )
+    const rows = res.toArray()
+    const features: any[] = []
+    for (const row of rows) {
+      try {
+        const geom = JSON.parse(String((row as any)._geom ?? '{}'))
+        const { _geom, ...props } = row as Record<string, unknown>
+        const safeProps: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(props)) safeProps[k] = normalizeValue(v)
+        features.push({ type: 'Feature', geometry: geom, properties: safeProps })
+      } catch { /* skip malformed */ }
+    }
+    return features
+  } catch {
+    return [] as any[]
+  }
+}
+
+defineExpose({ appendLocalLayer })
 </script>
 
 <style scoped>
@@ -491,5 +604,24 @@ async function loadFile(file: File) {
 .ad-file-meta {
   font-size: 0.68rem;
   color: hsl(var(--muted-foreground));
+}
+.ad-file-remove {
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.ad-file-remove:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--accent));
 }
 </style>

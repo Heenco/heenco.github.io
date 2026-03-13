@@ -790,7 +790,7 @@
       :layersPanelBottom="layersPanelBottom"
       :layersFabVisible="pinnedLayers.length > 0 && !showLayers"
       :bufferMeters="spatialBufferMeters"
-      :hidden="reachOpen || financialOpen || giOpen"
+      :hidden="reachOpen || financialOpen || giOpen || chartsOpen"
       @bufferChange="onSIBufferChange"
       @openChange="siOpen = $event"
     />
@@ -799,7 +799,7 @@
       :point="spatialSearchPoint"
       :mapboxToken="(config.public as any).mapboxToken ?? ''"
       :siBotPx="siFabBotPx"
-      :hidden="siOpen || financialOpen || giOpen"
+      :hidden="siOpen || financialOpen || giOpen || chartsOpen"
       @isochroneGeoJSON="onIsochroneGeoJSON"
       @poisUpdate="onPoisUpdate"
       @catVisibility="onCatVisibility"
@@ -811,7 +811,7 @@
       :reachBotPx="reachFabBotPx"
       :layersPanelBottom="layersPanelBottom"
       :layersFabVisible="pinnedLayers.length > 0 && !showLayers"
-      :hidden="siOpen || reachOpen || giOpen"
+      :hidden="siOpen || reachOpen || giOpen || chartsOpen"
       @openChange="financialOpen = $event"
     />
 
@@ -819,15 +819,23 @@
       :selectedFeature="giSelectedFeature"
       :clickMsg="giClickMsg"
       :financialBotPx="financialFabBotPx"
-      :hidden="siOpen || reachOpen || financialOpen"
+      :hidden="siOpen || reachOpen || financialOpen || chartsOpen"
       @openChange="giOpen = $event"
     />
 
+    <LayerChartsPanel
+      :layers="pinnedLayers"
+      :hidden="siOpen || reachOpen || financialOpen || giOpen"
+      @openChange="chartsOpen = $event"
+    />
+
     <AddDataPanel
+      ref="addDataRef"
       :esriBotPx="esriFabBotPx"
       :open="addDataOpen"
       @openChange="addDataOpen = $event; if ($event) { showPanel = false; showGeoSearch = false }"
       @layerLoaded="onLocalLayerLoaded"
+      @layerRemoved="onLocalLayerRemoved"
     />
 
   </div>
@@ -842,6 +850,7 @@ import SpatialIntelligencePanel from '~/components/tools/spatial/SpatialIntellig
 import ReachPanel from '~/components/tools/spatial/ReachPanel.vue'
 import FinancialPanel from '~/components/tools/spatial/FinancialPanel.vue'
 import GeometryInspectorPanel from '~/components/tools/spatial/GeometryInspectorPanel.vue'
+import LayerChartsPanel from '~/components/tools/spatial/LayerChartsPanel.vue'
 import AddDataPanel from '~/components/tools/spatial/AddDataPanel.vue'
 import { ESRI_LIBRARY } from '~/config/esriLibrary'
 import type { Feature } from 'geojson'
@@ -1189,6 +1198,9 @@ interface PinnedLayer {
   // Dynamic pagination state (not serialized)
   loadedOids: Set<number | string>   // dedup set for OIDs already fetched
   accumulatedFeatures: any[]         // features accumulated during pan expansions
+  localSource?: boolean
+  localKeys?: Set<string>
+  localLoading?: boolean
 }
 let   pinCounter        = 0
 let   activeGeomCategory: 'polygon' | 'line' | 'point' = 'point'
@@ -1216,6 +1228,10 @@ function onSIBufferChange(v: number) { spatialBufferMeters.value = v }
 
 // ── Layers panel ResizeObserver (feeds SI FAB position) ───────────────────────
 const layersPanelBottom = ref(0)
+type AddDataPanelExpose = {
+  appendLocalLayer: (id: string, bbox: [number, number, number, number], limit?: number) => Promise<any[]>
+}
+const addDataRef = ref<AddDataPanelExpose | null>(null)
 let _panelRO: ResizeObserver | null = null
 let _bufferDragging = false
 let _bufferHandlersInit = false
@@ -1226,6 +1242,7 @@ const siOpen       = ref(false)
 const reachOpen    = ref(false)
 const financialOpen = ref(false)
 const giOpen       = ref(false)
+const chartsOpen   = ref(false)
 const giSelectedFeature = ref<Feature | null>(null)
 const giClickMsg   = ref('')
 
@@ -1263,8 +1280,8 @@ watch(() => showGeoSearch.value, open => {
     addDataOpen.value = false
   }
 })
-watch([siOpen, reachOpen, financialOpen, giOpen], ([si, reach, fin, gi]) => {
-  if (si || reach || fin || gi) showLayers.value = false
+watch([siOpen, reachOpen, financialOpen, giOpen, chartsOpen], ([si, reach, fin, gi, charts]) => {
+  if (si || reach || fin || gi || charts) showLayers.value = false
 })
 watch(() => showLayers.value, open => {
   if (!open) return
@@ -1272,6 +1289,7 @@ watch(() => showLayers.value, open => {
   reachOpen.value = false
   financialOpen.value = false
   giOpen.value = false
+  chartsOpen.value = false
 })
 
 function onLocalLayerLoaded(payload: {
@@ -1310,6 +1328,12 @@ function onLocalLayerLoaded(payload: {
     layerIds.push(`${sourceId}-circle`)
   }
 
+  const localKeys = new Set<string>()
+  for (const f of payload.geojson.features ?? []) {
+    const k = localFeatureKey(f)
+    if (k) localKeys.add(k)
+  }
+
   pinnedLayers.value.push({
     id:           sourceId,
     label:        payload.label,
@@ -1327,10 +1351,27 @@ function onLocalLayerLoaded(payload: {
     geojson:      payload.geojson,
     loadedOids:   new Set(),
     accumulatedFeatures: payload.geojson.features,
+    localSource: true,
+    localKeys,
+    localLoading: false,
   })
+
+  const bb = featureBbox(payload.geojson)
+  if (bb) {
+    if (bb[0] === bb[2] && bb[1] === bb[3]) {
+      map.flyTo({ center: [bb[0], bb[1]], zoom: 12, essential: true })
+    } else {
+      map.fitBounds([[bb[0], bb[1]], [bb[2], bb[3]]], { padding: 60, duration: 600, maxZoom: 14 })
+    }
+  }
 
   // Show layers panel
   showLayers.value = true
+}
+
+function onLocalLayerRemoved(id: string) {
+  removePinnedLayer(id)
+  if (pinnedLayers.value.length === 0) showLayers.value = false
 }
 
 function setLayersPanelRef(el: HTMLElement | null) {
@@ -2477,7 +2518,58 @@ const onMapMoveEnd = () => {
         expandPinnedLayer(layer.id)
       }
     }
+    for (const layer of pinnedLayers.value) {
+      if (layer.visible && layer.localSource) {
+        expandLocalLayer(layer.id)
+      }
+    }
   }, 800)
+}
+
+const localFeatureKey = (f: any) => {
+  try { return JSON.stringify(f?.geometry ?? null) } catch { return null }
+}
+
+const expandLocalLayer = async (layerId: string) => {
+  const layer = pinnedLayers.value.find(l => l.id === layerId)
+  if (!layer || !map || !layer.localSource) return
+  if (layer.localLoading) return
+  const bounds = map.getBounds()
+  const bb: [number, number, number, number] = [
+    bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth(),
+  ]
+
+  const append = addDataRef.value?.appendLocalLayer
+  if (!append) return
+
+  layer.localLoading = true
+  try {
+    const newFeatures = await append(layerId, bb, 5000)
+    if (!newFeatures.length) return
+
+    const keySet = layer.localKeys ?? new Set<string>()
+    const appendList: any[] = []
+    for (const f of newFeatures) {
+      const k = localFeatureKey(f)
+      if (!k || keySet.has(k)) continue
+      keySet.add(k)
+      appendList.push(f)
+    }
+    layer.localKeys = keySet
+
+    if (appendList.length > 0) {
+      layer.accumulatedFeatures = [...(layer.accumulatedFeatures ?? []), ...appendList]
+      layer.featureCount = layer.accumulatedFeatures.length
+      const source = map.getSource(layerId) as any
+      if (source) {
+        const _expData = { type: 'FeatureCollection' as const, features: layer.accumulatedFeatures }
+        layer.geojson = _expData
+        source.setData(_expData)
+      }
+    }
+  } finally {
+    layer.localLoading = false
+  }
 }
 
 const expandLayerPreview = async () => {
