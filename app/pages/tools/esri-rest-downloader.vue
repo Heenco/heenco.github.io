@@ -1,41 +1,52 @@
 <template>
   <div class="er-page">
 
-    <!-- ── FAB (when panel hidden) ────────────────────────────────────── -->
-    <button v-if="!showPanel" class="er-fab" @click="showPanel = true" title="Open ESRI REST Downloader">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <!-- ── ESRI REST FAB (when panel hidden) ──────────────────────────── -->
+    <button v-if="!showPanel" class="er-fab er-fab--esri" @click="showPanel = true; addDataOpen = false; showGeoSearch = false" title="Open ESRI REST Downloader">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
     </button>
 
-    <!-- ── Location search (above left panel) ─────────────────── -->
-    <div v-if="showPanel" class="er-geo-search-wrapper" ref="geoSearchWrapperRef">
-      <div class="er-geo-search-container">
-        <input
-          v-model="geoSearchQuery"
-          type="text"
-          placeholder="Search location…"
-          class="er-geo-search-input"
-          @input="fetchGeoSuggestions"
-          @keyup.enter="searchGeoLocation"
-          @focus="showGeoSuggestions = true"
-        />
-        <button v-if="geoSearchQuery" class="er-geo-search-btn er-geo-search-clear" @click="clearGeoSearch" title="Clear">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-        <button class="er-geo-search-btn" @click="searchGeoLocation" title="Search">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </button>
-      </div>
-      <div v-if="showGeoSuggestions && geoSuggestions.length > 0" class="er-geo-suggestions">
-        <div
-          v-for="s in geoSuggestions"
-          :key="s.id"
-          class="er-geo-suggestion"
-          @click="selectGeoSuggestion(s)"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-          <span class="er-geo-suggestion-name">{{ s.place_name }}</span>
+    <!-- ── Location search (always visible, collapsible) ────────────── -->
+    <div class="er-geo-search-wrapper" ref="geoSearchWrapperRef">
+      <!-- Collapsed: just a search icon button -->
+      <button v-if="!showGeoSearch" class="er-fab er-fab--geo" @click="showGeoSearch = true; showPanel = false; addDataOpen = false" title="Search location">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+
+      <!-- Expanded: full search bar -->
+      <template v-else>
+        <div class="er-geo-search-container">
+          <input
+            v-model="geoSearchQuery"
+            type="text"
+            placeholder="Search location…"
+            class="er-geo-search-input"
+            @input="fetchGeoSuggestions"
+            @keyup.enter="searchGeoLocation"
+            @focus="showGeoSuggestions = true"
+          />
+          <button v-if="geoSearchQuery" class="er-geo-search-btn er-geo-search-clear" @click="clearGeoSearch" title="Clear">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <button class="er-geo-search-btn" @click="searchGeoLocation" title="Search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+          <button class="er-geo-search-btn er-geo-search-close" @click="showGeoSearch = false; clearGeoSearch()" title="Close search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
-      </div>
+        <div v-if="showGeoSuggestions && geoSuggestions.length > 0" class="er-geo-suggestions">
+          <div
+            v-for="s in geoSuggestions"
+            :key="s.id"
+            class="er-geo-suggestion"
+            @click="selectGeoSuggestion(s)"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span class="er-geo-suggestion-name">{{ s.place_name }}</span>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- ── Left panel ────────────────────────────────────────────────────── -->
@@ -779,7 +790,7 @@
       :layersPanelBottom="layersPanelBottom"
       :layersFabVisible="pinnedLayers.length > 0 && !showLayers"
       :bufferMeters="spatialBufferMeters"
-      :hidden="reachOpen || financialOpen"
+      :hidden="reachOpen || financialOpen || giOpen"
       @bufferChange="onSIBufferChange"
       @openChange="siOpen = $event"
     />
@@ -788,7 +799,7 @@
       :point="spatialSearchPoint"
       :mapboxToken="(config.public as any).mapboxToken ?? ''"
       :siBotPx="siFabBotPx"
-      :hidden="siOpen || financialOpen"
+      :hidden="siOpen || financialOpen || giOpen"
       @isochroneGeoJSON="onIsochroneGeoJSON"
       @poisUpdate="onPoisUpdate"
       @catVisibility="onCatVisibility"
@@ -800,7 +811,7 @@
       :reachBotPx="reachFabBotPx"
       :layersPanelBottom="layersPanelBottom"
       :layersFabVisible="pinnedLayers.length > 0 && !showLayers"
-      :hidden="siOpen || reachOpen"
+      :hidden="siOpen || reachOpen || giOpen"
       @openChange="financialOpen = $event"
     />
 
@@ -810,6 +821,13 @@
       :financialBotPx="financialFabBotPx"
       :hidden="siOpen || reachOpen || financialOpen"
       @openChange="giOpen = $event"
+    />
+
+    <AddDataPanel
+      :esriBotPx="esriFabBotPx"
+      :open="addDataOpen"
+      @openChange="addDataOpen = $event; if ($event) { showPanel = false; showGeoSearch = false }"
+      @layerLoaded="onLocalLayerLoaded"
     />
 
   </div>
@@ -824,6 +842,7 @@ import SpatialIntelligencePanel from '~/components/tools/spatial/SpatialIntellig
 import ReachPanel from '~/components/tools/spatial/ReachPanel.vue'
 import FinancialPanel from '~/components/tools/spatial/FinancialPanel.vue'
 import GeometryInspectorPanel from '~/components/tools/spatial/GeometryInspectorPanel.vue'
+import AddDataPanel from '~/components/tools/spatial/AddDataPanel.vue'
 import { ESRI_LIBRARY } from '~/config/esriLibrary'
 import type { Feature } from 'geojson'
 
@@ -893,7 +912,8 @@ async function submitBugReport() {
 }
 
 // ── Panel visibility ──────────────────────────────────────────────────────
-const showPanel           = ref(true)
+const showPanel           = ref(false)
+const showGeoSearch       = ref(true)
 const showCustomEndpoint  = ref(true)
 
 // ── Geocoding search ──────────────────────────────────────────────────────
@@ -1214,16 +1234,106 @@ watch(giOpen, (open) => {
   if (!map) return
   map.getCanvas().style.cursor = open ? 'crosshair' : ''
 })
-const siFabBotPx = computed(() => {
-  if (layersPanelBottom.value) return layersPanelBottom.value + 8 + 40
-  if (pinnedLayers.value.length > 0 && !showLayers.value) return 16 + 48 + 40
-  return 16 + 40
+const FAB_TOP = 16
+const FAB_SIZE = 40
+const FAB_GAP = 8
+const siFabBotPx = computed(() => (FAB_TOP + FAB_SIZE + FAB_GAP) + FAB_SIZE)
+const reachFabBotPx     = computed(() => siFabBotPx.value + FAB_GAP + FAB_SIZE)
+const financialFabBotPx = computed(() => reachFabBotPx.value + FAB_GAP + FAB_SIZE)
+const esriFabBotPx      = computed(() => (FAB_TOP + FAB_SIZE + FAB_GAP) + FAB_SIZE)
+
+const addDataOpen = ref(false)
+
+// Close ESRI panel when Add Data panel is opened
+watch(addDataOpen, open => {
+  if (open) {
+    showPanel.value = false
+    showGeoSearch.value = false
+  }
 })
-const reachFabBotPx     = computed(() => siFabBotPx.value + 8 + 40)
-const financialFabBotPx = computed(() => reachFabBotPx.value + 8 + 40)
+watch(() => showPanel.value, open => {
+  if (open) {
+    addDataOpen.value = false
+    showGeoSearch.value = false
+  }
+})
+watch(() => showGeoSearch.value, open => {
+  if (open) {
+    showPanel.value = false
+    addDataOpen.value = false
+  }
+})
+watch([siOpen, reachOpen, financialOpen, giOpen], ([si, reach, fin, gi]) => {
+  if (si || reach || fin || gi) showLayers.value = false
+})
+watch(() => showLayers.value, open => {
+  if (!open) return
+  siOpen.value = false
+  reachOpen.value = false
+  financialOpen.value = false
+  giOpen.value = false
+})
+
+function onLocalLayerLoaded(payload: {
+  id: string
+  label: string
+  geomCategory: 'polygon' | 'line' | 'point'
+  featureCount: number
+  geojson: { type: 'FeatureCollection'; features: any[] }
+  color: string
+}) {
+  if (!map) return
+
+  // Build simple paint from the chosen color
+  const c = payload.color
+  const paint = payload.geomCategory === 'polygon'
+    ? { fill: { 'fill-color': c, 'fill-opacity': 0.4 }, line: { 'line-color': c, 'line-width': 1 } }
+    : payload.geomCategory === 'line'
+      ? { line: { 'line-color': c, 'line-width': 2 } }
+      : { circle: { 'circle-color': c, 'circle-radius': 5, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } }
+
+  const sourceId = payload.id
+  if (!map.getSource(sourceId)) {
+    map.addSource(sourceId, { type: 'geojson', data: payload.geojson })
+  }
+
+  const layerIds: string[] = []
+  if (payload.geomCategory === 'polygon') {
+    map.addLayer({ id: `${sourceId}-fill`,   type: 'fill',   source: sourceId, paint: (paint as any).fill })
+    map.addLayer({ id: `${sourceId}-line`,   type: 'line',   source: sourceId, paint: (paint as any).line })
+    layerIds.push(`${sourceId}-fill`, `${sourceId}-line`)
+  } else if (payload.geomCategory === 'line') {
+    map.addLayer({ id: `${sourceId}-line`,   type: 'line',   source: sourceId, paint: (paint as any).line })
+    layerIds.push(`${sourceId}-line`)
+  } else {
+    map.addLayer({ id: `${sourceId}-circle`, type: 'circle', source: sourceId, paint: (paint as any).circle })
+    layerIds.push(`${sourceId}-circle`)
+  }
+
+  pinnedLayers.value.push({
+    id:           sourceId,
+    label:        payload.label,
+    color:        c,
+    visible:      true,
+    geomCategory: payload.geomCategory,
+    mapLayerIds:  layerIds,
+    featureCount: payload.featureCount,
+    paint:        paint as any,
+    queued:       false,
+    queuedLayerUrl:  '',
+    queuedLayerName: '',
+    pending:      false,
+    fetchError:   '',
+    geojson:      payload.geojson,
+    loadedOids:   new Set(),
+    accumulatedFeatures: payload.geojson.features,
+  })
+
+  // Show layers panel
+  showLayers.value = true
+}
 
 function setLayersPanelRef(el: HTMLElement | null) {
-  _panelRO?.disconnect()
   _panelRO = null
   if (!el) { layersPanelBottom.value = 0; return }
   const update = () => { layersPanelBottom.value = el.offsetTop + el.offsetHeight }
@@ -3175,8 +3285,8 @@ onUnmounted(() => {
 
 .er-panel {
   position: absolute;
-  top: calc(1rem + 48px + 0.75rem);
-  left: 1rem;
+  top: 1rem;
+  left: calc(1rem + 40px + 8px);
   bottom: 1rem;
   width: 360px;
   background: hsl(var(--card) / 0.97);
@@ -3301,6 +3411,8 @@ onUnmounted(() => {
 }
 
 .er-fab--right { left: auto; right: 1rem; }
+.er-fab--geo   { top: 0; left: 0; }
+.er-fab--esri  { top: calc(1rem + 40px + 8px); }
 
 .er-fab-badge {
   position: absolute;
@@ -3321,8 +3433,11 @@ onUnmounted(() => {
   position: absolute;
   top: 1rem;
   left: 1rem;
-  width: 360px;
+  width: fit-content;
   z-index: 20;
+}
+.er-geo-search-wrapper:has(.er-geo-search-container) {
+  width: 360px;
 }
 
 .er-geo-search-container {
@@ -3332,8 +3447,9 @@ onUnmounted(() => {
   background: hsl(var(--card) / 0.97);
   backdrop-filter: blur(12px);
   border: 1px solid hsl(var(--border));
-  border-radius: 8px;
-  padding: 4px;
+  border-radius: 20px;
+  padding: 0 6px;
+  height: 40px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.3);
 }
 
@@ -3344,7 +3460,7 @@ onUnmounted(() => {
   background: transparent;
   color: hsl(var(--foreground));
   font-size: 0.82rem;
-  padding: 0.45rem 0.6rem;
+  padding: 0 0.5rem;
   font-family: inherit;
 }
 .er-geo-search-input::placeholder {
@@ -3372,6 +3488,13 @@ onUnmounted(() => {
 }
 .er-geo-search-clear { opacity: 0.7; }
 .er-geo-search-clear:hover { opacity: 1; }
+.er-geo-search-close {
+  border-left: 1px solid hsl(var(--border));
+  border-radius: 0 16px 16px 0;
+  margin-left: 2px;
+  opacity: 0.6;
+}
+.er-geo-search-close:hover { opacity: 1; }
 
 .er-geo-suggestions {
   margin-top: 6px;
@@ -4186,52 +4309,17 @@ onUnmounted(() => {
   100% { transform: translateX(350%); }
 }
 
-/* ── Map HUD (bottom-right: views + bug report) ─────────────────────────── */
+/* ── Map HUD (bottom-center fixed: views + bug report) ─────────────────────────── */
 .er-hud {
-  position: absolute;
-  bottom: 0.75rem;
-  right: calc(16px + 64px + 10px);
-  z-index: 10;
+  position: fixed;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(calc(-50% - 120px));
+  z-index: 9999;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.35rem;
-}
-
-.er-hud-eye {
-  display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.65);
-  cursor: default;
-  transition: color 0.15s, background 0.15s;
-  flex-shrink: 0;
-}
-.er-hud:hover .er-hud-eye {
-  color: #fff;
-  background: rgba(0,0,0,0.72);
-}
-
-.er-hud-popup {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.25rem;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(5px);
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-.er-hud:hover .er-hud-popup {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
+  gap: 0.35rem;
 }
 
 .er-hud-views {
@@ -4687,7 +4775,9 @@ onUnmounted(() => {
 /* ── Layers panel (right side) ─────────────────────────────────────────── */
 .er-layers-panel {
   position: absolute;
-  top: 1rem; right: 1rem;
+  top: 1rem;
+  right: calc(1rem + 40px + 8px);
+  bottom: 1rem;
   width: 300px;
   max-height: calc(100vh - 2rem);
   background: hsl(var(--card) / 0.97);

@@ -246,18 +246,9 @@ const expandedSections = ref({
 // Geometry analysis
 const { selectedFeature, analysisResults, analyzePolygon, clearSelection } = usePolygonInspector()
 
-// FAB positioning — mirrors FinancialPanel logic one step further down
-const fabTop = computed(() => {
-  if (props.financialBotPx) return `${props.financialBotPx + 8}px`
-  return 'calc(1rem + 192px)'
-})
-
-const panelTop = computed(() => {
-  if (props.financialBotPx) return `${props.financialBotPx + 8 + 40 + 8}px`
-  return 'calc(1rem + 240px)'
-})
-
-const panelMaxHeight = computed(() => `calc(100vh - ${panelTop.value} - 1rem)`)
+const fabTop = computed(() => 'calc(1rem + 192px)')
+const panelTop = computed(() => '1rem')
+const panelMaxHeight = computed(() => 'calc(100vh - 2rem)')
 
 // Resize handling
 function startResize(e: MouseEvent) {
@@ -290,6 +281,10 @@ function clearAnalysis() {
 // Watch isOpen and emit changes to parent
 watch(isOpen, (newVal) => {
   emit('openChange', newVal)
+})
+
+watch(() => props.hidden, (v) => {
+  if (v) isOpen.value = false
 })
 
 // Watch for external feature selection
@@ -343,7 +338,9 @@ watch(
 /* ─── Panel ───────────────────────────────────────────────────────────────────── */
 .gi-panel {
   position: absolute;
-  right: 1rem;
+  right: calc(1rem + 40px + 8px);
+  top: 1rem;
+  bottom: 1rem;
   z-index: 19;
   min-width: 220px;
   background: hsl(var(--card) / 0.97);

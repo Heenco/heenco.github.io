@@ -273,21 +273,9 @@ watch(isOpen, v => emit('openChange', v))
 watch(() => props.hidden, v => { if (v) isOpen.value = false })
 const view = ref<'analysis' | 'settings'>('analysis')
 
-// Dynamic positioning: sit just below whatever is in the top-right corner
-const fabTop = computed(() => {
-  if (props.layersPanelBottom) return `${props.layersPanelBottom + 8}px`
-  if (props.layersFabVisible) return 'calc(1rem + 48px)'
-  return '1rem'
-})
-const panelTop = computed(() => {
-  if (props.layersPanelBottom) return `${props.layersPanelBottom + 8 + 40 + 8}px`
-  if (props.layersFabVisible) return 'calc(1rem + 96px)'
-  return 'calc(1rem + 48px)'
-})
-const panelMaxHeight = computed(() => {
-  if (props.layersPanelBottom) return `calc(100vh - ${props.layersPanelBottom + 8 + 40 + 16}px)`
-  return 'calc(100vh - 2rem - 96px)'
-})
+const fabTop = computed(() => 'calc(1rem + 48px)')
+const panelTop = computed(() => '1rem')
+const panelMaxHeight = computed(() => 'calc(100vh - 2rem)')
 
 // ── Analysis state ────────────────────────────────────────────────────────────
 const running = ref(false)
@@ -530,11 +518,12 @@ async function runAnalysis() {
 /* ── Panel ───────────────────────────────────────────────────────────────── */
 .si-panel {
   position: absolute;
-  top: calc(1rem + 96px); /* fallback; overridden by :style binding */
-  right: 1rem;
+  top: 1rem; /* overridden by :style binding */
+  right: calc(1rem + 40px + 8px);
+  bottom: 1rem;
   z-index: 11;
   min-width: 220px;
-  max-height: calc(100vh - 2rem - 96px);
+  max-height: calc(100vh - 2rem);
   background: hsl(var(--card) / 0.97);
   backdrop-filter: blur(14px);
   border: 1px solid hsl(var(--border));

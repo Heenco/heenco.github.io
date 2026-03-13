@@ -219,18 +219,9 @@ function startResize(e: MouseEvent) {
 watch(isOpen, v => emit('openChange', v))
 watch(() => props.hidden, v => { if (v) isOpen.value = false })
 
-// ── Positioning (stack below Reach FAB) ───────────────────────────────────────
-const fabTop = computed(() => {
-  if (props.reachBotPx) return `${props.reachBotPx + 8}px`
-  if (props.layersPanelBottom) return `${props.layersPanelBottom + 8 + 40 + 8 + 40 + 8 + 40 + 8}px`
-  if (props.layersFabVisible)  return 'calc(1rem + 144px + 48px)'
-  return 'calc(1rem + 144px)'
-})
-const panelTop = computed(() => {
-  if (props.reachBotPx) return `${props.reachBotPx + 8 + 40 + 8}px`
-  return 'calc(1rem + 196px)'
-})
-const panelMaxHeight = computed(() => `calc(100vh - ${panelTop.value} - 1rem)`)
+const fabTop = computed(() => 'calc(1rem + 144px)')
+const panelTop = computed(() => '1rem')
+const panelMaxHeight = computed(() => 'calc(100vh - 2rem)')
 
 // ── Analysis state ────────────────────────────────────────────────────────────
 const running  = ref(false)
@@ -418,7 +409,9 @@ watch(() => props.point, () => {
 /* ── Panel ───────────────────────────────────────────────────────────────── */
 .fp-panel {
   position: absolute;
-  right: 1rem;
+  right: calc(1rem + 40px + 8px);
+  top: 1rem;
+  bottom: 1rem;
   z-index: 19;
   min-width: 220px;
   background: hsl(var(--card) / 0.97);

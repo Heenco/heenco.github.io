@@ -295,19 +295,9 @@ const runStatus = ref('')
 const runError  = ref('')
 const results   = ref<CatResult[]>([])
 
-// ── Positioning (stack below SI FAB) ─────────────────────────────────────────
-const fabTop = computed(() => {
-  if (props.siBotPx) return `${props.siBotPx + 8}px`
-  if (props.layersPanelBottom) return `${props.layersPanelBottom + 8 + 40 + 8 + 40 + 8}px`
-  if (props.layersFabVisible) return 'calc(1rem + 96px + 48px)'
-  return 'calc(1rem + 96px)'
-})
-const panelTop = computed(() => {
-  if (props.siBotPx) return `${props.siBotPx + 8 + 40 + 8}px`
-  if (props.layersPanelBottom) return `${props.layersPanelBottom + 8 + 40 + 8 + 40 + 8 + 40 + 8}px`
-  return 'calc(1rem + 144px)'
-})
-const panelMaxHeight = computed(() => `calc(100vh - ${panelTop.value} - 1rem)`)
+const fabTop = computed(() => 'calc(1rem + 96px)')
+const panelTop = computed(() => '1rem')
+const panelMaxHeight = computed(() => 'calc(100vh - 2rem)')
 
 // ── Computed ──────────────────────────────────────────────────────────────────
 const overallScore = computed<number | null>(() => {
@@ -559,7 +549,9 @@ watch(() => props.point, () => {
 /* ── Panel ───────────────────────────────────────────────────────────────── */
 .rp-panel {
   position: absolute;
-  right: 1rem;
+  right: calc(1rem + 40px + 8px);
+  top: 1rem;
+  bottom: 1rem;
   z-index: 19;
   min-width: 220px;
   background: hsl(var(--card) / 0.97);
