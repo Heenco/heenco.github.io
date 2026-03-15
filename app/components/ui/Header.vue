@@ -175,14 +175,44 @@ onUnmounted(() => {
 /* Responsive Design */
 @media (max-width: 768px) {
   .nav {
-    flex-direction: column;
-    gap: 1.5rem;
+    flex-direction: row;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    min-height: 48px;
   }
 
   .nav__links {
-    flex-direction: column;
-    gap: 1.5rem;
-    text-align: center;
+    flex-direction: row;
+    gap: 0.9rem;
+    text-align: right;
+    margin-left: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 0.35rem;
+  }
+
+  .nav__links a {
+    font-size: 0.86rem;
+    padding-bottom: 0.15rem;
+  }
+
+  .header-logo :deep(.heenco-logo__mark) {
+    width: 1.7rem;
+    height: 1.7rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .nav {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .nav__links {
+    gap: 0.7rem;
+  }
+
+  .nav__links a {
+    font-size: 0.8rem;
   }
 }
 </style>

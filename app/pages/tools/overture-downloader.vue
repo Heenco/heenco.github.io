@@ -352,6 +352,13 @@
               </div>
               <USwitch :modelValue="layer.visible" @update:modelValue="toggleMapLayer(layer.id)" />
               <button
+                class="od-layer-btn od-layer-btn--table"
+                @click="openTableViewer(layer)"
+                title="View table"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              </button>
+              <button
                 class="od-layer-btn od-layer-btn--remove"
                 @click="removeMapLayer(layer.id)"
                 title="Remove layer"
@@ -397,6 +404,282 @@
 
       </aside>
     </transition>
+
+    <!-- ── Table Viewer modal ────────────────────────────────────────────── -->
+    <teleport to="body">
+      <transition name="od-fade">
+        <div v-if="tvLayer" class="od-tv-overlay">
+          <div class="od-tv-modal">
+
+            <!-- Loading -->
+            <div v-if="tvLoading" class="od-tv-loading">
+              <div class="od-tv-spinner"></div>
+              <span>Loading data…</span>
+            </div>
+
+            <!-- Error -->
+            <div v-else-if="tvError" class="od-tv-err">
+              <span>{{ tvError }}</span>
+              <button class="od-tv-btn-ghost" @click="closeTableViewer">Close</button>
+            </div>
+
+            <!-- Content -->
+            <template v-else>
+
+              <!-- Topbar -->
+              <header class="od-tv-topbar">
+                <div class="od-tv-topbar-left">
+                  <button class="od-tv-btn-ghost" title="Close" @click="closeTableViewer">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                  <div class="od-tv-info">
+                    <span class="od-tv-name">{{ tvLayer.label }}</span>
+                    <span class="od-tv-meta">{{ tvTotalRows.toLocaleString() }} rows · {{ tvColumns.length }} columns</span>
+                  </div>
+                </div>
+              </header>
+
+              <!-- Body -->
+              <div class="od-tv-body">
+                <main class="od-tv-main">
+                  <div class="od-tv-main-inner">
+
+                    <!-- Tab bar -->
+                    <div class="od-tv-tabs">
+                      <button class="od-tv-tab" :class="{ 'od-tv-tab--active': tvActiveTab === 'data' }" @click="tvActiveTab = 'data'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+                        Data
+                      </button>
+                      <button class="od-tv-tab" :class="{ 'od-tv-tab--active': tvActiveTab === 'charts' }" @click="tvActiveTab = 'charts'">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="9" width="3" height="6"/><rect x="6" y="5" width="3" height="10"/><rect x="11" y="2" width="3" height="13"/></svg>
+                        Charts
+                      </button>
+                      <button class="od-tv-tab od-tv-tab--right" :class="{ 'od-tv-tab--active': tvColPanelOpen }" @click="tvColPanelOpen = !tvColPanelOpen" title="Toggle columns panel">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                        Columns
+                      </button>
+                    </div>
+
+                    <!-- ── Data tab ─────────────────────────────────────────── -->
+                    <div v-show="tvActiveTab === 'data'" class="od-tv-data-wrap">
+                      <div class="od-tv-table-scroll" @scroll.passive="tvOnTableScroll">
+                        <table class="od-tv-table">
+                          <thead>
+                            <tr>
+                              <th class="od-tv-th od-tv-th--num">#</th>
+                              <th
+                                v-for="col in tvDisplayCols" :key="col.name"
+                                class="od-tv-th"
+                                :class="{ 'od-tv-th--right': col.kind === 'numeric' }"
+                              >
+                                <span class="od-tv-th-name" :title="col.name">{{ col.name }}</span>
+                                <span class="od-tv-th-badge" :class="`od-tv-badge--${col.kind}`">{{ col.typeLabel }}</span>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="(row, i) in tvTableRows" :key="i" class="od-tv-tr">
+                              <td class="od-tv-td od-tv-td--num">{{ i + 1 }}</td>
+                              <td
+                                v-for="col in tvDisplayCols" :key="col.name"
+                                class="od-tv-td"
+                                :class="{ 'od-tv-td--right': col.kind === 'numeric', 'od-tv-td--null': row[col.name] == null }"
+                                :title="row[col.name] != null ? String(row[col.name]) : ''"
+                              >{{ tvFmtCell(row[col.name], col.kind) }}</td>
+                            </tr>
+                            <tr v-if="tvTableOffset < tvTotalRows" class="od-tv-tr od-tv-tr--loadmore">
+                              <td :colspan="tvDisplayCols.length + 1" class="od-tv-td od-tv-td--loadmore">
+                                <span v-if="tvTableLoading" class="od-tv-mini-spinner"></span>
+                                <span v-else class="od-tv-loadmore-hint">Scroll for more…</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <!-- ── Charts tab ───────────────────────────────────────── -->
+                    <div v-if="tvActiveTab === 'charts'" class="od-tv-charts-area">
+                      <div class="od-tv-grid">
+
+                        <!-- Existing chart cards -->
+                        <div v-for="chart in tvCharts" :key="chart.id" class="od-tv-card">
+                          <!-- Toolbar row 1 -->
+                          <div class="od-tv-card-toolbar">
+                            <div class="od-tv-type-pills">
+                              <button
+                                v-for="t in TV_CHART_TYPES" :key="t.id"
+                                class="od-tv-type-pill"
+                                :class="{
+                                  'od-tv-type-pill--active': chart.type === t.id,
+                                  'od-tv-type-pill--disabled': tvColsForType(t.id).length === 0
+                                }"
+                                :disabled="tvColsForType(t.id).length === 0"
+                                :title="t.label"
+                                @click="tvChangeType(chart, t.id)"
+                                v-html="t.icon"
+                              ></button>
+                            </div>
+                            <button class="od-tv-card-close" @click="tvRemoveChart(chart.id)" title="Remove">×</button>
+                          </div>
+
+                          <!-- Toolbar row 2: column selectors -->
+                          <div class="od-tv-card-selects">
+                            <select class="od-tv-select" v-model="chart.col" @change="tvReloadChart(chart)">
+                              <option value="">— column —</option>
+                              <option v-for="c in tvColsForType(chart.type)" :key="c.name" :value="c.name">{{ c.name }}</option>
+                            </select>
+                            <template v-if="tvNeedsY(chart.type)">
+                              <select class="od-tv-select" v-model="chart.col2" @change="tvReloadChart(chart)">
+                                <option value="">{{ chart.type === 'line' ? '— Y (optional, avg) —' : '— Y axis —' }}</option>
+                                <option v-for="c in tvNumericCols" :key="c.name" :value="c.name">{{ c.name }}</option>
+                              </select>
+                            </template>
+                            <template v-if="chart.type === 'bubble'">
+                              <select class="od-tv-select" v-model="chart.col3" @change="tvReloadChart(chart)">
+                                <option value="">— size —</option>
+                                <option v-for="c in tvNumericCols" :key="c.name" :value="c.name">{{ c.name }}</option>
+                              </select>
+                            </template>
+                          </div>
+
+                          <!-- Count display -->
+                          <div v-if="chart.type === 'count' && chart.col" class="od-tv-count-display">
+                            <div class="od-tv-count-big">{{ tvGetColStats(chart.col)?.nonNull.toLocaleString() ?? '—' }}</div>
+                            <div class="od-tv-count-sub">non-null in <em>{{ chart.col }}</em></div>
+                            <div class="od-tv-count-pills">
+                              <span>{{ tvTotalRows.toLocaleString() }} total</span>
+                              <span>{{ tvGetColStats(chart.col)?.nullPct.toFixed(1) }}% null</span>
+                              <span>{{ tvGetColStats(chart.col)?.approxUnique.toLocaleString() }} unique</span>
+                            </div>
+                            <div v-if="tvGetColKind(chart.col) === 'numeric' && tvGetColStats(chart.col)" class="od-tv-count-pills">
+                              <span>min {{ tvFmtNum(tvGetColStats(chart.col)?.min) }}</span>
+                              <span>max {{ tvFmtNum(tvGetColStats(chart.col)?.max) }}</span>
+                              <span v-if="tvGetColStats(chart.col)?.mean != null">avg {{ tvFmtNum(tvGetColStats(chart.col)?.mean) }}</span>
+                            </div>
+                          </div>
+                          <div v-else-if="chart.type === 'count' && !chart.col" class="od-tv-card-placeholder">
+                            <span class="od-tv-card-hint">Select a column above</span>
+                          </div>
+
+                          <!-- Chart canvas or states -->
+                          <template v-else>
+                            <div v-if="chart.loading" class="od-tv-card-placeholder">
+                              <div class="od-tv-card-spinner"></div>
+                            </div>
+                            <div v-else-if="chart.error" class="od-tv-card-placeholder">
+                              <span class="od-tv-card-error">{{ chart.error }}</span>
+                            </div>
+                            <div
+                              v-else-if="chart.data"
+                              :ref="(el) => tvSetChartEl(chart.id, el as HTMLElement | null)"
+                              class="od-tv-chart-canvas"
+                            ></div>
+                            <div v-else class="od-tv-card-placeholder">
+                              <span class="od-tv-card-hint">{{ chart.col ? 'Select Y axis to continue' : 'Select a column above' }}</span>
+                            </div>
+                          </template>
+
+                          <!-- Palette picker -->
+                          <div class="od-tv-pal-anchor" @mouseleave="tvOpenPaletteId = null">
+                            <div v-if="tvOpenPaletteId === chart.id || tvLockedPaletteId === chart.id" class="od-tv-pal-pop" @mouseenter="tvOpenPaletteId = chart.id">
+                              <button
+                                v-for="p in TV_PALETTES" :key="p.id"
+                                class="od-tv-swatch"
+                                :class="{ 'od-tv-swatch--active': chart.palette === p.id }"
+                                :title="p.label"
+                                :style="{ background: p.swatch }"
+                                @click.stop="tvSetChartPalette(chart, p.id)"
+                              ></button>
+                            </div>
+                            <button
+                              class="od-tv-palette-dot"
+                              :class="{ 'od-tv-palette-dot--locked': tvLockedPaletteId === chart.id }"
+                              :style="{ background: TV_PALETTES.find(p => p.id === chart.palette)?.swatch ?? '#3f3f46' }"
+                              title="Click to pin colour picker"
+                              @mouseenter="tvOpenPaletteId = chart.id"
+                              @click.stop="tvTogglePaletteLock(chart.id)"
+                            ></button>
+                          </div>
+                        </div>
+
+                        <!-- Add Chart card -->
+                        <div class="od-tv-card od-tv-card--add">
+                          <div class="od-tv-add-title">Add Chart</div>
+                          <div class="od-tv-add-types">
+                            <button
+                              v-for="t in TV_CHART_TYPES" :key="t.id"
+                              class="od-tv-add-type"
+                              :class="{
+                                'od-tv-add-type--active': tvDraftType === t.id,
+                                'od-tv-add-type--disabled': tvColsForType(t.id).length === 0
+                              }"
+                              :disabled="tvColsForType(t.id).length === 0"
+                              @click="tvSelectDraftType(t.id)"
+                            >
+                              <span class="od-tv-add-type-icon" v-html="t.icon"></span>
+                              <span class="od-tv-add-type-label">{{ t.label }}</span>
+                            </button>
+                          </div>
+                          <div v-if="tvDraftType" class="od-tv-add-selects">
+                            <div class="od-tv-add-select-row">
+                              <label class="od-tv-add-select-label">{{ tvDraftXLabel }}</label>
+                              <select class="od-tv-select od-tv-select--full" v-model="tvDraftCol">
+                                <option value="">— select —</option>
+                                <option v-for="c in tvColsForType(tvDraftType)" :key="c.name" :value="c.name">{{ c.name }}</option>
+                              </select>
+                            </div>
+                            <div v-if="tvNeedsY(tvDraftType)" class="od-tv-add-select-row">
+                              <label class="od-tv-add-select-label">{{ tvDraftType === 'line' ? 'Y (optional, avg)' : 'Y axis' }}</label>
+                              <select class="od-tv-select od-tv-select--full" v-model="tvDraftCol2">
+                                <option value="">{{ tvDraftType === 'line' ? '— count (default) —' : '— select —' }}</option>
+                                <option v-for="c in tvNumericCols" :key="c.name" :value="c.name">{{ c.name }}</option>
+                              </select>
+                            </div>
+                            <div v-if="tvDraftType === 'bubble'" class="od-tv-add-select-row">
+                              <label class="od-tv-add-select-label">Size</label>
+                              <select class="od-tv-select od-tv-select--full" v-model="tvDraftCol3">
+                                <option value="">— select —</option>
+                                <option v-for="c in tvNumericCols" :key="c.name" :value="c.name">{{ c.name }}</option>
+                              </select>
+                            </div>
+                          </div>
+                          <button class="od-tv-add-btn" :disabled="!tvCanAddChart" @click="tvCommitAddChart">+ Add</button>
+                        </div>
+
+                      </div>
+                    </div><!-- /charts -->
+
+                  </div><!-- /od-tv-main-inner -->
+
+                  <!-- Right column panel -->
+                  <Transition name="od-tv-col-panel">
+                    <aside v-if="tvColPanelOpen" class="od-tv-col-panel">
+                      <div class="od-tv-col-panel-head">
+                        <span class="od-tv-sidebar-title">Columns</span>
+                        <span class="od-tv-sidebar-count">{{ tvColumns.length }}</span>
+                        <button class="od-tv-col-panel-close" @click="tvColPanelOpen = false" title="Close">×</button>
+                      </div>
+                      <ul class="od-tv-col-list">
+                        <li v-for="col in tvColumns" :key="col.name" class="od-tv-col-item">
+                          <button class="od-tv-col-btn" @click="tvQuickAddChart(col)" :title="`Add chart for ${col.name}`">
+                            <span class="od-tv-col-badge" :class="`od-tv-badge--${col.kind}`">{{ col.typeLabel }}</span>
+                            <span class="od-tv-col-name">{{ col.name }}</span>
+                            <span class="od-tv-col-plus">+</span>
+                          </button>
+                        </li>
+                      </ul>
+                    </aside>
+                  </Transition>
+
+                </main>
+              </div><!-- /od-tv-body -->
+
+            </template>
+          </div><!-- /od-tv-modal -->
+        </div>
+      </transition>
+    </teleport>
 
   </div>
 </template>
@@ -1150,7 +1433,7 @@ async function addToQueue() {
           SELECT ${geoSelect}
           FROM read_parquet('${s3}')
           WHERE ${catWhere}${bboxWhere}
-        ) TO '${fileName}' (FORMAT PARQUET, COMPRESSION ZSTD)
+        ) TO '${fileName}' (FORMAT PARQUET)
       `
       await conn.query(sql)
 
@@ -1301,6 +1584,543 @@ onUnmounted(() => {
   document.removeEventListener('click', handleSearchClickOutside)
   if (searchDebounce) clearTimeout(searchDebounce)
 })
+
+// ── Table Viewer (inline data explorer) ─────────────────────────────────────
+
+type TvColKind   = 'categorical' | 'numeric' | 'datetime' | 'geometry'
+type TvChartType = 'bar' | 'histogram' | 'line' | 'scatter' | 'bubble' | 'count'
+
+interface TvColumn {
+  name: string; type: string; typeLabel: string; kind: TvColKind
+  stats: { nonNull: number; nullPct: number; approxUnique: number; min: any; max: any; mean: number | null } | null
+}
+
+interface TvChart {
+  id: string; type: TvChartType; palette: string
+  col: string; col2: string; col3: string
+  data: any; loading: boolean; error: string
+}
+
+const TV_CHART_TYPES: ReadonlyArray<{ id: TvChartType; label: string; icon: string }> = [
+  { id: 'bar',       label: 'Bar',       icon: `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="9" width="3" height="6"/><rect x="6" y="5" width="3" height="10"/><rect x="11" y="2" width="3" height="13"/></svg>` },
+  { id: 'histogram', label: 'Histogram', icon: `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="7" width="2.5" height="8"/><rect x="3.5" y="4" width="2.5" height="11"/><rect x="6" y="2" width="2.5" height="13"/><rect x="8.5" y="5" width="2.5" height="10"/><rect x="11" y="8" width="2.5" height="7"/><rect x="13.5" y="10" width="1.5" height="5"/></svg>` },
+  { id: 'line',      label: 'Line',      icon: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,12 4,7 7,10 10,4 13,8 15,5"/></svg>` },
+  { id: 'scatter',   label: 'Scatter',   icon: `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="12" r="1.5"/><circle cx="7" cy="5" r="1.5"/><circle cx="11" cy="9" r="1.5"/><circle cx="5" cy="7" r="1.5"/><circle cx="13" cy="3" r="1.5"/><circle cx="9" cy="13" r="1.5"/></svg>` },
+  { id: 'bubble',    label: 'Bubble',    icon: `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" opacity="0.85"><circle cx="4" cy="11" r="2.5"/><circle cx="11" cy="8" r="4"/><circle cx="7" cy="4" r="1.5"/></svg>` },
+  { id: 'count',     label: 'Count',     icon: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="6" y1="2" x2="4" y2="14"/><line x1="12" y1="2" x2="10" y2="14"/><line x1="3" y1="6" x2="13" y2="6"/><line x1="2" y1="10" x2="12" y2="10"/></svg>` },
+]
+
+interface TvPalette { id: string; label: string; swatch: string; primary: string; secondary: string; area: string; secondary2: string }
+const TV_PALETTES: ReadonlyArray<TvPalette> = [
+  { id: 'zinc',   label: 'Zinc',   swatch: '#3f3f46', primary: '#18181b', secondary: '#3f3f46', area: 'rgba(24,24,27,0.07)',   secondary2: '#71717a' },
+  { id: 'blue',   label: 'Blue',   swatch: '#2563eb', primary: '#1d4ed8', secondary: '#2563eb', area: 'rgba(37,99,235,0.08)',  secondary2: '#3b82f6' },
+  { id: 'teal',   label: 'Teal',   swatch: '#0d9488', primary: '#0f766e', secondary: '#0d9488', area: 'rgba(13,148,136,0.08)', secondary2: '#14b8a6' },
+  { id: 'violet', label: 'Violet', swatch: '#7c3aed', primary: '#6d28d9', secondary: '#7c3aed', area: 'rgba(124,58,237,0.08)', secondary2: '#8b5cf6' },
+  { id: 'rose',   label: 'Rose',   swatch: '#be123c', primary: '#be123c', secondary: '#e11d48', area: 'rgba(190,18,60,0.07)',  secondary2: '#f43f5e' },
+  { id: 'amber',  label: 'Amber',  swatch: '#b45309', primary: '#b45309', secondary: '#d97706', area: 'rgba(180,83,9,0.07)',   secondary2: '#f59e0b' },
+]
+
+const TV_PAGE      = 200
+
+// Lazy ECharts loader (CDN)
+let _tvEchartsPromise: Promise<any> | null = null
+function getECharts(): Promise<any> {
+  if (_tvEchartsPromise) return _tvEchartsPromise
+  _tvEchartsPromise = new Promise(resolve => {
+    if ((window as any).echarts) { resolve((window as any).echarts); return }
+    const s = document.createElement('script')
+    s.src   = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js'
+    s.onload  = () => resolve((window as any).echarts)
+    s.onerror = () => resolve(null)
+    document.head.appendChild(s)
+  })
+  return _tvEchartsPromise
+}
+
+// State
+const tvLayer        = ref<MapLayer | null>(null)
+const tvLoading      = ref(false)
+const tvError        = ref('')
+const tvColumns      = ref<TvColumn[]>([])
+const tvTotalRows    = ref(0)
+const tvTableRows    = ref<Record<string, any>[]>([])
+const tvTableLoading = ref(false)
+const tvTableOffset  = ref(0)
+const tvActiveTab    = ref<'data' | 'charts'>('data')
+const tvColPanelOpen = ref(false)
+const tvCharts       = ref<TvChart[]>([])
+const tvDraftType    = ref<TvChartType | null>(null)
+const tvDraftCol     = ref('')
+const tvDraftCol2    = ref('')
+const tvDraftCol3    = ref('')
+const tvOpenPaletteId   = ref<string | null>(null)
+const tvLockedPaletteId = ref<string | null>(null)
+
+let tvConn: any = null
+let tvSrc = ''
+let tvRegisteredFileName: string | null = null
+const tvChartEls       = new Map<string, HTMLElement>()
+const tvChartInstances = new Map<string, any>()
+let   tvChartIdSeq     = 0
+
+function tvMakeVfsFileName(layerId: string): string {
+  const safeLayerId = layerId.replace(/[^a-zA-Z0-9_-]/g, '_')
+  return `tv_data_${safeLayerId}_${Date.now()}.parquet`
+}
+
+// Computed
+const tvDisplayCols = computed(() => tvColumns.value.filter(c => c.kind !== 'geometry'))
+const tvNumericCols = computed(() => tvColumns.value.filter(c => c.kind === 'numeric'))
+
+const tvCanAddChart = computed(() => {
+  if (!tvDraftType.value || !tvDraftCol.value) return false
+  if (tvDraftType.value === 'scatter' && !tvDraftCol2.value) return false
+  if (tvDraftType.value === 'bubble' && (!tvDraftCol2.value || !tvDraftCol3.value)) return false
+  return true
+})
+
+const tvDraftXLabel = computed(() => {
+  if (!tvDraftType.value) return 'Column'
+  return ['scatter', 'bubble', 'line'].includes(tvDraftType.value) ? 'X axis' : 'Column'
+})
+
+// Helpers
+const TV_GEO_NAMES   = new Set(['geometry', 'geom', 'wkb_geometry', 'wkt', 'the_geom', 'shape', 'geo'])
+const TV_RX_NUMERIC  = /^(TINY|SMALL|UBIG|UHUGE|UINT|USMALL|UTINY|BIG|HUGE)?INT(EGER)?$|^(FLOAT|DOUBLE|REAL|DECIMAL|NUMERIC)/i
+const TV_RX_DATETIME = /^(DATE|TIMESTAMP|TIME|INTERVAL)/i
+const TV_RX_GEOMETRY = /^(BLOB|GEOMETRY|WKB_BLOB)/i
+
+function tvClassifyType(name: string, type: string): TvColKind {
+  if (TV_GEO_NAMES.has(name.toLowerCase()) || TV_RX_GEOMETRY.test(type)) return 'geometry'
+  if (TV_RX_NUMERIC.test(type))  return 'numeric'
+  if (TV_RX_DATETIME.test(type)) return 'datetime'
+  return 'categorical'
+}
+
+function tvGetTypeLabel(type: string): string {
+  if (TV_RX_GEOMETRY.test(type))                             return 'Geom'
+  if (type.startsWith('VARCHAR') || type === 'TEXT')         return 'Text'
+  if (type === 'BOOLEAN')                                    return 'Bool'
+  if (type === 'INTEGER' || type === 'INT')                  return 'Int'
+  if (type === 'BIGINT')                                     return 'BigInt'
+  if (type === 'DOUBLE' || type === 'FLOAT' || type === 'REAL') return 'Float'
+  if (type.startsWith('DECIMAL'))                            return 'Dec'
+  if (type.startsWith('TIMESTAMP'))                          return 'Time'
+  if (type === 'DATE')                                       return 'Date'
+  return type.includes('(') ? type.substring(0, type.indexOf('(')) : type
+}
+
+function tvFmtNum(v: any): string {
+  if (v == null) return '—'
+  const n = Number(v)
+  if (isNaN(n)) return String(v)
+  if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(1) + 'B'
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M'
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'K'
+  if (Number.isInteger(n)) return n.toLocaleString()
+  return parseFloat(n.toFixed(4)).toString()
+}
+
+function tvFmtCell(v: any, kind: TvColKind): string {
+  if (v == null) return 'null'
+  const s = String(v)
+  if (kind === 'numeric') return tvFmtNum(v)
+  return s.length > 80 ? s.slice(0, 78) + '…' : s
+}
+
+function tvColsForType(type: TvChartType | null): TvColumn[] {
+  if (!type) return []
+  switch (type) {
+    case 'bar':       return tvColumns.value.filter(c => c.kind !== 'geometry')
+    case 'histogram': return tvColumns.value.filter(c => c.kind === 'numeric')
+    case 'line':      return tvColumns.value.filter(c => c.kind !== 'geometry')
+    case 'scatter':   return tvColumns.value.filter(c => c.kind === 'numeric')
+    case 'bubble':    return tvColumns.value.filter(c => c.kind === 'numeric')
+    case 'count':     return tvColumns.value.filter(c => c.kind !== 'geometry')
+    default:          return []
+  }
+}
+
+function tvNeedsY(type: TvChartType | null): boolean {
+  return type === 'scatter' || type === 'bubble' || type === 'line'
+}
+
+function tvGetColStats(colName: string) { return tvColumns.value.find(c => c.name === colName)?.stats ?? null }
+function tvGetColKind(colName: string)  { return tvColumns.value.find(c => c.name === colName)?.kind ?? null }
+
+function tvGetChartPalette(chart: TvChart): TvPalette {
+  return TV_PALETTES.find(p => p.id === chart.palette) ?? TV_PALETTES[0]!
+}
+
+// Open / close
+async function openTableViewer(layer: MapLayer) {
+  const entry = queue.value.find(e => e.id === layer.id)
+  if (!entry?.buffer) return
+
+  tvLayer.value        = layer
+  tvLoading.value      = true
+  tvError.value        = ''
+  tvColumns.value      = []
+  tvTableRows.value    = []
+  tvTotalRows.value    = 0
+  tvTableOffset.value  = 0
+  tvActiveTab.value    = 'data'
+  tvColPanelOpen.value = false
+  tvCharts.value       = []
+  tvDraftType.value    = null
+  tvDraftCol.value     = ''
+  tvDraftCol2.value    = ''
+  tvDraftCol3.value    = ''
+  tvOpenPaletteId.value   = null
+  tvLockedPaletteId.value = null
+
+  for (const inst of tvChartInstances.values()) inst.dispose()
+  tvChartInstances.clear(); tvChartEls.clear(); tvChartIdSeq = 0
+
+  try { await tvConn?.close() } catch {}
+  tvConn = null
+
+  try {
+    await getDuckDB()
+    // Drop previous table-view file if present.
+    if (tvRegisteredFileName) {
+      try { await _db.dropFile(tvRegisteredFileName) } catch {}
+      tvRegisteredFileName = null
+    }
+    // Clean up any legacy fixed-name file from older builds.
+    try { await _db.dropFile('tv_data.parquet') } catch {}
+    try { await _db.dropFile('tv_data.json') } catch {}
+
+    // Create a fresh copy for DuckDB registration.
+    const rawUint8 = entry.buffer.slice()
+    const tvFileName = tvMakeVfsFileName(layer.id)
+
+    // Register file **before** creating connection so connection sees fresh state.
+    await _db.registerFileBuffer(tvFileName, rawUint8.slice())
+    tvRegisteredFileName = tvFileName
+    tvSrc = `read_parquet('${tvFileName}')`
+
+    // Now create connection with file already registered.
+    tvConn = await _db.connect()
+    try { await tvConn.query(`LOAD spatial;`) } catch {}
+
+    const cntRes = await tvConn.query(`SELECT COUNT(*) AS n FROM ${tvSrc}`)
+    tvTotalRows.value = Number(cntRes.toArray()[0].n)
+
+    const sumRes  = await tvConn.query(`SUMMARIZE SELECT * FROM ${tvSrc}`)
+    tvColumns.value = sumRes.toArray().map((row: any): TvColumn => {
+      const name = String(row.column_name ?? '')
+      const type = String(row.column_type ?? '')
+      return {
+        name, type,
+        typeLabel: tvGetTypeLabel(type),
+        kind:      tvClassifyType(name, type),
+        stats: {
+          nonNull:      Number(row.count ?? 0),
+          nullPct:      Number(row.null_percentage ?? 0),
+          approxUnique: Number(row.approx_unique ?? 0),
+          min:          row.min ?? null,
+          max:          row.max ?? null,
+          mean:         row.mean != null ? Number(row.mean) : null,
+        },
+      }
+    })
+
+    tvLoading.value = false
+    await tvLoadTableData()
+    await tvAutoAddInitialCharts()
+  } catch (err: any) {
+    tvError.value   = `Failed to load data: ${err?.message ?? String(err)}`
+    tvLoading.value = false
+  }
+}
+
+async function closeTableViewer() {
+  tvLayer.value = null
+  for (const inst of tvChartInstances.values()) inst.dispose()
+  tvChartInstances.clear(); tvChartEls.clear()
+  try { await tvConn?.close() } catch {}
+  tvConn = null
+  if (tvRegisteredFileName) {
+    try { await _db.dropFile(tvRegisteredFileName) } catch {}
+    tvRegisteredFileName = null
+  }
+}
+
+// Table data
+async function tvLoadTableData() {
+  tvTableLoading.value = true
+  tvTableRows.value    = []
+  tvTableOffset.value  = 0
+  try {
+    const cols = tvDisplayCols.value.map(c => `"${c.name}"`).join(', ')
+    const res  = await tvConn.query(`SELECT ${cols} FROM ${tvSrc} LIMIT ${TV_PAGE} OFFSET 0`)
+    tvTableRows.value = res.toArray().map((row: any) => {
+      const out: Record<string, any> = {}
+      for (const col of tvDisplayCols.value) {
+        const v = row[col.name]
+        out[col.name] = (v != null && typeof v === 'object' && typeof v.toString === 'function') ? v.toString() : v
+      }
+      return out
+    })
+    tvTableOffset.value = tvTableRows.value.length
+  } catch {}
+  tvTableLoading.value = false
+}
+
+async function tvLoadMoreRows() {
+  if (tvTableLoading.value || tvTableOffset.value >= tvTotalRows.value) return
+  tvTableLoading.value = true
+  try {
+    const cols = tvDisplayCols.value.map(c => `"${c.name}"`).join(', ')
+    const res  = await tvConn.query(`SELECT ${cols} FROM ${tvSrc} LIMIT ${TV_PAGE} OFFSET ${tvTableOffset.value}`)
+    const newRows = res.toArray().map((row: any) => {
+      const out: Record<string, any> = {}
+      for (const col of tvDisplayCols.value) {
+        const v = row[col.name]
+        out[col.name] = (v != null && typeof v === 'object' && typeof v.toString === 'function') ? v.toString() : v
+      }
+      return out
+    })
+    tvTableRows.value  = [...tvTableRows.value, ...newRows]
+    tvTableOffset.value += newRows.length
+  } catch {}
+  tvTableLoading.value = false
+}
+
+function tvOnTableScroll(e: Event) {
+  if (tvTableLoading.value || tvTableOffset.value >= tvTotalRows.value) return
+  const el = e.target as HTMLElement
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) tvLoadMoreRows()
+}
+
+// Chart rendering
+function tvSetChartEl(id: string, el: HTMLElement | null) {
+  if (el) {
+    tvChartEls.set(id, el)
+    const chart = tvCharts.value.find(c => c.id === id)
+    if (chart?.data) tvRenderChart(id)
+  } else {
+    tvChartInstances.get(id)?.dispose()
+    tvChartInstances.delete(id)
+    tvChartEls.delete(id)
+  }
+}
+
+async function tvRenderChart(id: string) {
+  const el    = tvChartEls.get(id)
+  const chart = tvCharts.value.find(c => c.id === id)
+  if (!el || !chart?.data) return
+  const ec = await getECharts()
+  if (!ec) return
+  let inst = tvChartInstances.get(id)
+  if (!inst) { inst = ec.init(el, null, { renderer: 'canvas' }); tvChartInstances.set(id, inst) }
+  inst.setOption(tvBuildOption(chart), true)
+}
+
+function tvBuildOption(chart: TvChart): any {
+  const pal       = tvGetChartPalette(chart)
+  const axLabel   = { color: '#71717a', fontSize: 11 }
+  const splitLine = { lineStyle: { color: '#f0f0f1' } }
+  const d         = chart.data
+
+  if (chart.type === 'bar') {
+    return {
+      backgroundColor: 'transparent',
+      grid: { left: 4, right: 16, top: 6, bottom: 4, containLabel: true },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, confine: true },
+      xAxis: { type: 'value', axisLabel: axLabel, splitLine },
+      yAxis: {
+        type: 'category', data: [...d.labels].reverse(),
+        axisLabel: { ...axLabel, width: 110, overflow: 'truncate', formatter: (v: string) => v.length > 18 ? v.slice(0, 16) + '…' : v },
+      },
+      series: [{ type: 'bar', data: [...d.values].reverse(), itemStyle: { color: pal.primary, borderRadius: 2 }, emphasis: { itemStyle: { color: pal.secondary } } }],
+    }
+  }
+  if (chart.type === 'histogram') {
+    return {
+      backgroundColor: 'transparent',
+      grid: { left: 4, right: 8, top: 6, bottom: 4, containLabel: true },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, confine: true },
+      xAxis: { type: 'category', data: d.labels, axisLabel: { ...axLabel, rotate: 30 }, splitLine: { show: false } },
+      yAxis: { type: 'value', axisLabel: axLabel, splitLine },
+      series: [{ type: 'bar', data: d.values, barWidth: '95%', itemStyle: { color: pal.secondary, borderRadius: [2, 2, 0, 0] }, emphasis: { itemStyle: { color: pal.primary } } }],
+    }
+  }
+  if (chart.type === 'line') {
+    return {
+      backgroundColor: 'transparent',
+      grid: { left: 4, right: 8, top: 6, bottom: 4, containLabel: true },
+      tooltip: { trigger: 'axis', confine: true },
+      xAxis: { type: 'category', data: d.labels, axisLabel: { ...axLabel, rotate: 30 } },
+      yAxis: { type: 'value', axisLabel: axLabel, splitLine },
+      series: [{ type: 'line', data: d.values, smooth: true, symbol: 'none', lineStyle: { color: pal.primary, width: 2 }, areaStyle: { color: pal.area } }],
+    }
+  }
+  if (chart.type === 'scatter') {
+    const trunc = (s: string) => s.length > 12 ? s.slice(0, 10) + '…' : s
+    return {
+      backgroundColor: 'transparent',
+      grid: { left: 4, right: 8, top: 6, bottom: 4, containLabel: true },
+      tooltip: { trigger: 'item', confine: true, formatter: (p: any) => `${chart.col}: ${tvFmtNum(p.value[0])}<br>${chart.col2}: ${tvFmtNum(p.value[1])}` },
+      xAxis: { type: 'value', name: trunc(chart.col), nameLocation: 'end', nameTextStyle: { color: '#a1a1aa', fontSize: 10 }, axisLabel: axLabel, splitLine },
+      yAxis: { type: 'value', name: trunc(chart.col2), nameLocation: 'end', nameTextStyle: { color: '#a1a1aa', fontSize: 10 }, axisLabel: axLabel, splitLine },
+      series: [{ type: 'scatter', data: d, symbolSize: 5, itemStyle: { color: pal.secondary, opacity: 0.65 } }],
+    }
+  }
+  if (chart.type === 'bubble') {
+    const trunc = (s: string) => s.length > 10 ? s.slice(0, 8) + '…' : s
+    const maxZ  = Math.max(...(d as number[][]).map(r => r[2] ?? 0))
+    const scale = maxZ > 0 ? 30 / Math.sqrt(maxZ) : 1
+    return {
+      backgroundColor: 'transparent',
+      grid: { left: 4, right: 8, top: 6, bottom: 4, containLabel: true },
+      tooltip: { trigger: 'item', confine: true, formatter: (p: any) => `${chart.col}: ${tvFmtNum(p.value[0])}<br>${chart.col2}: ${tvFmtNum(p.value[1])}<br>${chart.col3}: ${tvFmtNum(p.value[2])}` },
+      xAxis: { type: 'value', name: trunc(chart.col),  nameLocation: 'end', nameTextStyle: { color: '#a1a1aa', fontSize: 10 }, axisLabel: axLabel, splitLine },
+      yAxis: { type: 'value', name: trunc(chart.col2), nameLocation: 'end', nameTextStyle: { color: '#a1a1aa', fontSize: 10 }, axisLabel: axLabel, splitLine },
+      series: [{ type: 'scatter', data: d, symbolSize: (r: number[]) => Math.max(4, Math.sqrt(r[2] ?? 0) * scale), itemStyle: { color: pal.secondary2, opacity: 0.65 } }],
+    }
+  }
+  return {}
+}
+
+async function tvQueryChart(id: string) {
+  const chart = tvCharts.value.find(c => c.id === id)
+  if (!chart || chart.type === 'count' || !tvConn) return
+  chart.loading = true; chart.error = ''; chart.data = null
+  const col = chart.col; const col2 = chart.col2; const col3 = chart.col3
+  try {
+    let data: any
+    const src = tvSrc
+    if (chart.type === 'bar') {
+      const res  = await tvConn.query(`SELECT CAST("${col}" AS VARCHAR) AS val, COUNT(*) AS cnt FROM ${src} WHERE "${col}" IS NOT NULL GROUP BY val ORDER BY cnt DESC`)
+      const rows = res.toArray()
+      data = { labels: rows.map((r: any) => String(r.val ?? '(empty)')), values: rows.map((r: any) => Number(r.cnt)) }
+    }
+    else if (chart.type === 'histogram') {
+      const res  = await tvConn.query(`
+        WITH bounds AS (SELECT MIN("${col}")::DOUBLE AS lo, MAX("${col}")::DOUBLE AS hi FROM ${src} WHERE "${col}" IS NOT NULL),
+        bucketed AS (SELECT CASE WHEN b.lo = b.hi THEN 1 ELSE LEAST(20, GREATEST(1, CAST(FLOOR(("${col}"::DOUBLE - b.lo) / (b.hi - b.lo) * 20.0) + 1 AS INTEGER))) END AS bucket, b.lo, b.hi FROM ${src}, bounds b WHERE "${col}" IS NOT NULL)
+        SELECT bucket, lo + (bucket - 1) * (hi - lo) / 20.0 AS bmin, COUNT(*) AS cnt FROM bucketed GROUP BY bucket, lo, hi ORDER BY bucket`)
+      const rows = res.toArray()
+      data = { labels: rows.map((r: any) => tvFmtNum(r.bmin)), values: rows.map((r: any) => Number(r.cnt)) }
+    }
+    else if (chart.type === 'line') {
+      const colMeta = tvColumns.value.find(c => c.name === col)
+      const isDate  = colMeta?.kind === 'datetime'
+      const yExpr   = col2 ? `AVG("${col2}"::DOUBLE)` : 'COUNT(*)'
+      const nullG   = col2 ? `AND "${col2}" IS NOT NULL` : ''
+      const q = isDate
+        ? `SELECT DATE_TRUNC('month', "${col}") AS x, ${yExpr} AS y FROM ${src} WHERE "${col}" IS NOT NULL ${nullG} GROUP BY x ORDER BY x`
+        : `SELECT CAST("${col}" AS VARCHAR) AS x, ${yExpr} AS y FROM ${src} WHERE "${col}" IS NOT NULL ${nullG} GROUP BY x ORDER BY y DESC`
+      const rows = (await tvConn.query(q)).toArray()
+      data = { labels: rows.map((r: any) => String(r.x ?? '').slice(0, 10)), values: rows.map((r: any) => r.y != null ? parseFloat(Number(r.y).toFixed(4)) : 0) }
+    }
+    else if (chart.type === 'scatter' && col2) {
+      const res = await tvConn.query(`SELECT "${col}"::DOUBLE AS x, "${col2}"::DOUBLE AS y FROM ${src} WHERE "${col}" IS NOT NULL AND "${col2}" IS NOT NULL`)
+      data = res.toArray().map((r: any) => [Number(r.x), Number(r.y)])
+    }
+    else if (chart.type === 'bubble' && col2 && col3) {
+      const res = await tvConn.query(`SELECT "${col}"::DOUBLE AS x, "${col2}"::DOUBLE AS y, ABS("${col3}"::DOUBLE) AS z FROM ${src} WHERE "${col}" IS NOT NULL AND "${col2}" IS NOT NULL AND "${col3}" IS NOT NULL`)
+      data = res.toArray().map((r: any) => [Number(r.x), Number(r.y), Number(r.z)])
+    }
+    const c = tvCharts.value.find(c => c.id === id)
+    if (c) { c.data = data ?? null; c.loading = false }
+    if (data) { await nextTick(); await tvRenderChart(id) }
+  } catch (err: any) {
+    const c = tvCharts.value.find(c => c.id === id)
+    if (c) { c.error = err?.message ?? String(err); c.loading = false }
+  }
+}
+
+function tvReloadChart(chart: TvChart) {
+  if (!chart.col) return
+  if (chart.type === 'scatter' && !chart.col2) return
+  if (chart.type === 'bubble' && (!chart.col2 || !chart.col3)) return
+  tvQueryChart(chart.id)
+}
+
+function tvChangeType(chart: TvChart, type: TvChartType) {
+  chart.type = type
+  if (!tvColsForType(type).find(c => c.name === chart.col)) chart.col = tvColsForType(type)[0]?.name ?? ''
+  if (!tvNeedsY(type)) { chart.col2 = ''; chart.col3 = '' }
+  if (type !== 'bubble') chart.col3 = ''
+  tvChartInstances.get(chart.id)?.clear()
+  chart.data = null; chart.error = ''
+  if (chart.type === 'count' || !chart.col) return
+  if (type === 'scatter' && !chart.col2) return
+  if (type === 'bubble' && (!chart.col2 || !chart.col3)) return
+  tvQueryChart(chart.id)
+}
+
+function tvRemoveChart(id: string) {
+  tvChartInstances.get(id)?.dispose()
+  tvChartInstances.delete(id); tvChartEls.delete(id)
+  tvCharts.value = tvCharts.value.filter(c => c.id !== id)
+}
+
+function tvSelectDraftType(type: TvChartType) {
+  tvDraftType.value = type
+  if (tvDraftCol.value && !tvColsForType(type).find(c => c.name === tvDraftCol.value)) tvDraftCol.value = ''
+  if (!tvNeedsY(type)) { tvDraftCol2.value = ''; tvDraftCol3.value = '' }
+  if (type !== 'bubble') tvDraftCol3.value = ''
+}
+
+async function tvCommitAddChart() {
+  if (!tvCanAddChart.value || !tvDraftType.value) return
+  const id = `tvchart-${++tvChartIdSeq}`
+  tvCharts.value.push({ id, type: tvDraftType.value, palette: 'zinc', col: tvDraftCol.value, col2: tvDraftCol2.value, col3: tvDraftCol3.value, data: null, loading: false, error: '' })
+  tvDraftType.value = null; tvDraftCol.value = ''; tvDraftCol2.value = ''; tvDraftCol3.value = ''
+  await tvQueryChart(id)
+}
+
+function tvQuickAddChart(col: TvColumn) {
+  const type: TvChartType = col.kind === 'numeric' ? 'histogram' : col.kind === 'datetime' ? 'line' : 'bar'
+  const id = `tvchart-${++tvChartIdSeq}`
+  tvCharts.value.push({ id, type, palette: 'zinc', col: col.name, col2: '', col3: '', data: null, loading: false, error: '' })
+  tvActiveTab.value = 'charts'
+  tvQueryChart(id)
+}
+
+async function tvAutoAddInitialCharts() {
+  const catCol = tvColumns.value.find(c => c.kind === 'categorical')
+  const numCol = tvColumns.value.find(c => c.kind === 'numeric')
+  const dtCol  = tvColumns.value.find(c => c.kind === 'datetime')
+  const toAdd: Array<{ type: TvChartType; col: string }> = []
+  if (catCol) toAdd.push({ type: 'bar', col: catCol.name })
+  if (numCol) toAdd.push({ type: 'histogram', col: numCol.name })
+  else if (dtCol) toAdd.push({ type: 'line', col: dtCol.name })
+  if (toAdd.length < 2) {
+    const used = new Set(toAdd.map(t => t.col))
+    for (const col of tvColumns.value) {
+      if (toAdd.length >= 2) break
+      if (used.has(col.name) || col.kind === 'geometry') continue
+      const t: TvChartType = col.kind === 'numeric' ? 'histogram' : col.kind === 'datetime' ? 'line' : 'bar'
+      toAdd.push({ type: t, col: col.name })
+    }
+  }
+  for (const { type, col } of toAdd) {
+    const id = `tvchart-${++tvChartIdSeq}`
+    tvCharts.value.push({ id, type, palette: 'zinc', col, col2: '', col3: '', data: null, loading: false, error: '' })
+    await tvQueryChart(id)
+  }
+}
+
+function tvOnPaletteLeave(id: string) {
+  if (tvLockedPaletteId.value !== id) tvOpenPaletteId.value = null
+}
+
+function tvTogglePaletteLock(id: string) {
+  tvLockedPaletteId.value = tvLockedPaletteId.value === id ? null : id
+  tvOpenPaletteId.value   = id
+}
+
+function tvSetChartPalette(chart: TvChart, id: string) {
+  chart.palette = id
+  tvOpenPaletteId.value   = null
+  tvLockedPaletteId.value = null
+  nextTick(() => { if (chart.data && !chart.loading) tvRenderChart(chart.id) })
+}
 </script>
 
 <style scoped>
@@ -2193,4 +3013,536 @@ onUnmounted(() => {
 .od-queue-entry-status--error      { color: #fdba74; }
 
 .od-modal--sm { max-width: 380px; }
+
+/* ── Table viewer: table icon button ─────────────────────────────────────── */
+.od-layer-btn--table {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+}
+.od-layer-btn--table:hover {
+  opacity: 1;
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
+}
+
+/* ── Table viewer: overlay & modal shell ─────────────────────────────────── */
+.od-tv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: hsl(var(--background));
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif;
+}
+
+.od-tv-modal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+
+/* Loading / error */
+.od-tv-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  height: 100%;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.85rem;
+}
+.od-tv-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid hsl(var(--border));
+  border-top-color: hsl(var(--foreground));
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.od-tv-err {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  height: 100%;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.85rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+/* Topbar */
+.od-tv-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  height: 48px;
+  border-bottom: 1px solid hsl(var(--border));
+  flex-shrink: 0;
+  background: hsl(var(--card));
+}
+.od-tv-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.od-tv-btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.od-tv-btn-ghost:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.od-tv-info { display: flex; flex-direction: column; min-width: 0; }
+.od-tv-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.od-tv-meta {
+  font-size: 0.72rem;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Body */
+.od-tv-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+.od-tv-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-width: 0;
+}
+.od-tv-main-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Tabs */
+.od-tv-tabs {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  flex-shrink: 0;
+  padding: 0 0.25rem;
+}
+.od-tv-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.od-tv-tab:hover { color: hsl(var(--foreground)); }
+.od-tv-tab--active { color: hsl(var(--foreground)); border-bottom-color: hsl(var(--foreground)); }
+.od-tv-tab--right { margin-left: auto; }
+
+/* Data tab table */
+.od-tv-data-wrap {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.od-tv-table-scroll {
+  flex: 1;
+  overflow: auto;
+}
+.od-tv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+.od-tv-th {
+  position: sticky;
+  top: 0;
+  background: hsl(var(--card));
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  border-bottom: 1px solid hsl(var(--border));
+  border-right: 1px solid hsl(var(--border) / 0.4);
+  white-space: nowrap;
+  z-index: 1;
+}
+.od-tv-th--num { width: 44px; min-width: 44px; text-align: right; }
+.od-tv-th--right { text-align: right; }
+.od-tv-th-name { display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.od-tv-th-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-top: 1px;
+}
+.od-tv-badge--numeric   { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.od-tv-badge--categorical { background: rgba(139,92,246,0.15); color: #a78bfa; }
+.od-tv-badge--datetime  { background: rgba(20,184,166,0.15); color: #2dd4bf; }
+.od-tv-badge--geometry  { background: rgba(245,158,11,0.15); color: #fbbf24; }
+
+.od-tv-tr:hover { background: hsl(var(--accent) / 0.5); }
+.od-tv-td {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.3);
+  border-right: 1px solid hsl(var(--border) / 0.2);
+  color: hsl(var(--foreground));
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.od-tv-td--num { text-align: right; color: hsl(var(--muted-foreground)); font-variant-numeric: tabular-nums; }
+.od-tv-td--right { text-align: right; font-variant-numeric: tabular-nums; }
+.od-tv-td--null { color: hsl(var(--muted-foreground)); font-style: italic; }
+.od-tv-td--loadmore { text-align: center; padding: 0.6rem; color: hsl(var(--muted-foreground)); }
+.od-tv-tr--loadmore { border: none; }
+.od-tv-loadmore-hint { font-size: 0.72rem; }
+.od-tv-mini-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid hsl(var(--border));
+  border-top-color: hsl(var(--foreground));
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+/* Charts area */
+.od-tv-charts-area {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+}
+.od-tv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.od-tv-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+}
+.od-tv-card--add {
+  border-style: dashed;
+  gap: 0.65rem;
+}
+.od-tv-card-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.od-tv-type-pills { display: flex; gap: 2px; flex: 1; flex-wrap: wrap; }
+.od-tv-type-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  padding: 0;
+}
+.od-tv-type-pill:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.od-tv-type-pill--active { background: hsl(var(--accent)); color: hsl(var(--foreground)); border-color: hsl(var(--border)); }
+.od-tv-type-pill--disabled { opacity: 0.3; cursor: not-allowed; }
+.od-tv-card-close {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.od-tv-card-close:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.od-tv-card-selects { display: flex; flex-direction: column; gap: 0.35rem; }
+.od-tv-select {
+  width: 100%;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  color: hsl(var(--foreground));
+  font-size: 0.76rem;
+  padding: 0.3rem 0.5rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.od-tv-select--full { width: 100%; }
+.od-tv-chart-canvas { height: 240px; }
+.od-tv-card-placeholder {
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.od-tv-card-hint { font-size: 0.75rem; color: hsl(var(--muted-foreground)); }
+.od-tv-card-error { font-size: 0.75rem; color: #ef4444; }
+.od-tv-card-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid hsl(var(--border));
+  border-top-color: hsl(var(--foreground));
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* Count display */
+.od-tv-count-display { padding: 0.5rem 0; text-align: center; }
+.od-tv-count-big { font-size: 2.5rem; font-weight: 700; color: hsl(var(--foreground)); font-variant-numeric: tabular-nums; }
+.od-tv-count-sub { font-size: 0.72rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.5rem; }
+.od-tv-count-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; justify-content: center; margin-top: 0.25rem; }
+.od-tv-count-pills span {
+  font-size: 0.68rem;
+  background: hsl(var(--accent));
+  color: hsl(var(--muted-foreground));
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+/* Palette picker */
+.od-tv-pal-anchor {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 4px;
+}
+.od-tv-pal-pop {
+  display: flex;
+  gap: 4px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+.od-tv-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s;
+}
+.od-tv-swatch:hover { transform: scale(1.2); }
+.od-tv-swatch--active { border-color: hsl(var(--foreground)); }
+.od-tv-palette-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.35);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s;
+}
+.od-tv-palette-dot:hover { transform: scale(1.25); }
+.od-tv-palette-dot--locked { border-color: hsl(var(--foreground)); }
+
+/* Add chart card */
+.od-tv-add-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.od-tv-add-types {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+}
+.od-tv-add-type {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0.4rem 0.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+.od-tv-add-type:hover { background: hsl(var(--accent)); }
+.od-tv-add-type--active { background: hsl(var(--accent)); border-color: hsl(var(--foreground) / 0.3); }
+.od-tv-add-type--disabled { opacity: 0.3; cursor: not-allowed; }
+.od-tv-add-type-icon { color: hsl(var(--muted-foreground)); }
+.od-tv-add-type-label { font-size: 0.65rem; color: hsl(var(--muted-foreground)); }
+.od-tv-add-selects { display: flex; flex-direction: column; gap: 0.4rem; }
+.od-tv-add-select-row { display: flex; flex-direction: column; gap: 0.2rem; }
+.od-tv-add-select-label { font-size: 0.68rem; color: hsl(var(--muted-foreground)); font-weight: 500; }
+.od-tv-add-btn {
+  width: 100%;
+  padding: 0.45rem;
+  border: none;
+  border-radius: 6px;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.od-tv-add-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.od-tv-add-btn:not(:disabled):hover { opacity: 0.85; }
+
+/* Column panel */
+.od-tv-col-panel {
+  width: 220px;
+  flex-shrink: 0;
+  border-left: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.od-tv-col-panel-head {
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--border));
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.od-tv-sidebar-title { font-size: 0.75rem; font-weight: 600; color: hsl(var(--foreground)); flex: 1; }
+.od-tv-sidebar-count {
+  font-size: 0.65rem;
+  background: hsl(var(--accent));
+  color: hsl(var(--muted-foreground));
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.od-tv-col-panel-close {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.od-tv-col-panel-close:hover { background: hsl(var(--accent)); }
+.od-tv-col-list { list-style: none; margin: 0; padding: 0.35rem; overflow-y: auto; flex: 1; }
+.od-tv-col-item { margin-bottom: 1px; }
+.od-tv-col-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.12s;
+}
+.od-tv-col-btn:hover { background: hsl(var(--accent)); }
+.od-tv-col-badge {
+  font-size: 0.58rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.od-tv-col-name {
+  font-size: 0.73rem;
+  color: hsl(var(--foreground));
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.od-tv-col-plus {
+  font-size: 0.8rem;
+  color: hsl(var(--muted-foreground));
+  opacity: 0.5;
+}
+.od-tv-col-btn:hover .od-tv-col-plus { opacity: 1; }
+
+/* Column panel slide transition */
+.od-tv-col-panel-enter-active,
+.od-tv-col-panel-leave-active {
+  transition: width 0.2s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+.od-tv-col-panel-enter-from,
+.od-tv-col-panel-leave-to {
+  width: 0;
+  opacity: 0;
+}
 </style>

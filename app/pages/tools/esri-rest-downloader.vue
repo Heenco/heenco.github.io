@@ -790,7 +790,7 @@
       :layersPanelBottom="layersPanelBottom"
       :layersFabVisible="pinnedLayers.length > 0 && !showLayers"
       :bufferMeters="spatialBufferMeters"
-      :hidden="reachOpen || financialOpen || giOpen || chartsOpen"
+      :hidden="reachOpen || financialOpen || giOpen || chartsOpen || convertOpen"
       @bufferChange="onSIBufferChange"
       @openChange="siOpen = $event"
     />
@@ -799,7 +799,7 @@
       :point="spatialSearchPoint"
       :mapboxToken="(config.public as any).mapboxToken ?? ''"
       :siBotPx="siFabBotPx"
-      :hidden="siOpen || financialOpen || giOpen || chartsOpen"
+      :hidden="siOpen || financialOpen || giOpen || chartsOpen || convertOpen"
       @isochroneGeoJSON="onIsochroneGeoJSON"
       @poisUpdate="onPoisUpdate"
       @catVisibility="onCatVisibility"
@@ -811,7 +811,7 @@
       :reachBotPx="reachFabBotPx"
       :layersPanelBottom="layersPanelBottom"
       :layersFabVisible="pinnedLayers.length > 0 && !showLayers"
-      :hidden="siOpen || reachOpen || giOpen || chartsOpen"
+      :hidden="siOpen || reachOpen || giOpen || chartsOpen || convertOpen"
       @openChange="financialOpen = $event"
     />
 
@@ -819,14 +819,19 @@
       :selectedFeature="giSelectedFeature"
       :clickMsg="giClickMsg"
       :financialBotPx="financialFabBotPx"
-      :hidden="siOpen || reachOpen || financialOpen || chartsOpen"
+      :hidden="siOpen || reachOpen || financialOpen || chartsOpen || convertOpen"
       @openChange="giOpen = $event"
     />
 
     <LayerChartsPanel
       :layers="pinnedLayers"
-      :hidden="siOpen || reachOpen || financialOpen || giOpen"
+      :hidden="siOpen || reachOpen || financialOpen || giOpen || convertOpen"
       @openChange="chartsOpen = $event"
+    />
+
+    <GeoParquetConvertPanel
+      :hidden="siOpen || reachOpen || financialOpen || giOpen || chartsOpen"
+      @openChange="convertOpen = $event"
     />
 
     <AddDataPanel
@@ -851,6 +856,7 @@ import ReachPanel from '~/components/tools/spatial/ReachPanel.vue'
 import FinancialPanel from '~/components/tools/spatial/FinancialPanel.vue'
 import GeometryInspectorPanel from '~/components/tools/spatial/GeometryInspectorPanel.vue'
 import LayerChartsPanel from '~/components/tools/spatial/LayerChartsPanel.vue'
+import GeoParquetConvertPanel from '~/components/tools/spatial/GeoParquetConvertPanel.vue'
 import AddDataPanel from '~/components/tools/spatial/AddDataPanel.vue'
 import { ESRI_LIBRARY } from '~/config/esriLibrary'
 import type { Feature } from 'geojson'
@@ -1243,6 +1249,7 @@ const reachOpen    = ref(false)
 const financialOpen = ref(false)
 const giOpen       = ref(false)
 const chartsOpen   = ref(false)
+const convertOpen  = ref(false)
 const giSelectedFeature = ref<Feature | null>(null)
 const giClickMsg   = ref('')
 
@@ -1280,8 +1287,8 @@ watch(() => showGeoSearch.value, open => {
     addDataOpen.value = false
   }
 })
-watch([siOpen, reachOpen, financialOpen, giOpen, chartsOpen], ([si, reach, fin, gi, charts]) => {
-  if (si || reach || fin || gi || charts) showLayers.value = false
+watch([siOpen, reachOpen, financialOpen, giOpen, chartsOpen, convertOpen], ([si, reach, fin, gi, charts, conv]) => {
+  if (si || reach || fin || gi || charts || conv) showLayers.value = false
 })
 watch(() => showLayers.value, open => {
   if (!open) return
@@ -1290,6 +1297,7 @@ watch(() => showLayers.value, open => {
   financialOpen.value = false
   giOpen.value = false
   chartsOpen.value = false
+  convertOpen.value = false
 })
 
 function onLocalLayerLoaded(payload: {
@@ -3097,7 +3105,78 @@ const basemaps = [
   { id: 'dark-matter', name: 'Dark Matter', style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json', previewTemplate: 'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png' },
   { id: 'voyager',    name: 'Voyager',     style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',      previewTemplate: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png' },
   { id: 'positron',   name: 'Positron',    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',     previewTemplate: 'https://a.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png' },
+  { id: 'satellite',  name: 'Satellite',   style: createSatelliteStyle(),     previewTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' },
+  { id: 'satellite-labels', name: 'Satellite + Labels', style: createSatelliteLabelsStyle(), previewTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' },
 ]
+
+// Create a simple satellite basemap style using ESRI World Imagery
+function createSatelliteStyle() {
+  return {
+    version: 8,
+    name: 'Satellite',
+    sources: {
+      'esri-world-imagery': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        attribution: 'Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+      }
+    },
+    layers: [
+      {
+        id: 'esri-world-imagery-layer',
+        type: 'raster',
+        source: 'esri-world-imagery',
+        minzoom: 0,
+        maxzoom: 22
+      }
+    ]
+  }
+}
+
+// Create satellite imagery with labels overlay
+function createSatelliteLabelsStyle() {
+  return {
+    version: 8,
+    name: 'Satellite + Labels',
+    sources: {
+      'esri-world-imagery': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        attribution: 'Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+      },
+      'esri-reference': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        attribution: 'Esri'
+      }
+    },
+    layers: [
+      {
+        id: 'satellite-imagery',
+        type: 'raster',
+        source: 'esri-world-imagery',
+        minzoom: 0,
+        maxzoom: 22
+      },
+      {
+        id: 'reference-overlay',
+        type: 'raster',
+        source: 'esri-reference',
+        minzoom: 0,
+        maxzoom: 22
+      }
+    ]
+  }
+}
 
 const toTileCoords = (lng: number, lat: number, zoom: number) => {
   const n = 2 ** zoom
@@ -3120,7 +3199,7 @@ const getBasemapPreviewUrl = (id: string) => {
 
 const getNextBasemapId = () => {
   const idx = basemaps.findIndex(b => b.id === currentBasemap.value)
-  return basemaps[(idx + 1) % basemaps.length].id
+  return basemaps[(idx + 1) % basemaps.length]?.id ?? basemaps[0]?.id ?? 'dark-matter'
 }
 
 const openBasemapMenu = () => {
