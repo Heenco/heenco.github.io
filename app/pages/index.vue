@@ -78,13 +78,21 @@
           </p>
         </div>
         <div class="contact-col">
-          <p class="section__eyebrow">Get in touch</p>
-          <h2 class="section__heading">Join the mission</h2>
-          <p class="about__body">Have an idea, a dataset to share, or want to collaborate? We'd love to hear from you.</p>
-          <a href="mailto:hello@heenco.com.au" class="contact-link">
-            hello@heenco.com
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
+          <p class="section__eyebrow">The person behind it</p>
+          <h2 class="section__heading">Maani Kheradmandi</h2>
+          <p class="about__body">
+            Spatial data engineer. Building open tools at the intersection of GIS, modern data engineering, and the web — with the belief that spatial knowledge should be free and accessible to everyone.
+          </p>
+          <div class="founder-links">
+            <a href="https://www.linkedin.com/in/maani-kheradmandi/" target="_blank" rel="noopener noreferrer" class="founder-link">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+              LinkedIn
+            </a>
+            <a href="https://github.com/Heenco" target="_blank" rel="noopener noreferrer" class="founder-link">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+              GitHub
+            </a>
+          </div>
         </div>
       </div>
     </section>
@@ -370,6 +378,34 @@ const technologies = [
 
 .contact-link:hover {
   border-color: #10b981;
+}
+
+.founder-links {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.founder-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #374151;
+  text-decoration: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  background: #fff;
+}
+
+.founder-link:hover {
+  border-color: #10b981;
+  color: #10b981;
+  background: rgba(16,185,129,0.04);
 }
 
 /* ── Responsive ────────────────────────────────────────────── */
