@@ -19,6 +19,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     perplexityApiKey: process.env.PERPLEXITY_API_KEY,
     groqApiKey: process.env.GROQ_API_KEY,
+    // VAPI — server-side only, never exposed to client
+    vapiPrivateKey:     process.env.VAPI_PRIVATE_KEY,
+    vapiAssistantId:    process.env.VAPI_ASSISTANT_ID,
+    vapiOutboundNumber: process.env.VAPI_OUTBOUND_NUMBER,
     public: {
       mapboxToken: process.env.NUXT_PUBLIC_MAPBOX_TOKEN,
       upstashRedisUrl: process.env.UPSTASH_REDIS_REST_URL,

@@ -58,6 +58,16 @@
 const NuxtLink = resolveComponent('NuxtLink')
 const tools = [
   {
+    slug: 'roxy-ai-receptionist',
+    route: '/tools/roxy-ai-receptionist',
+    name: 'Roxy — AI Receptionist',
+    description: 'Give your tradie business a 24/7 AI receptionist that answers calls, books jobs, and never takes a day off.',
+    tags: ['AI', 'Tradies', 'Voice'],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.1 6.1l1.27-.9a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+    </svg>`,
+  },
+  {
     slug: 'overture-downloader',
     route: '/tools/overture-downloader',
     name: 'Overture Downloader',
@@ -102,6 +112,20 @@ const tools = [
       <rect x="3" y="3" width="18" height="18" rx="2"/>
       <path d="M3 9h18M9 21V9"/>
       <path d="M7 15h2M7 18h4M13 13h4M13 16h2"/>
+    </svg>`,
+  },
+  {
+    slug: 'xsd-graph',
+    route: '/tools/xsd-graph',
+    name: 'XSD Graph Explorer',
+    description: 'Parse XML Schema (XSD) files and explore type hierarchies, extensions, and references as an interactive 3D node graph.',
+    tags: ['XSD', 'Schema', '3D Graph'],
+    icon: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="3" width="7" height="7" rx="1"/>
+      <rect x="15" y="3" width="7" height="7" rx="1"/>
+      <rect x="8" y="14" width="8" height="7" rx="1"/>
+      <line x1="5.5" y1="10" x2="12" y2="14"/>
+      <line x1="18.5" y1="10" x2="12" y2="14"/>
     </svg>`,
   },
   {

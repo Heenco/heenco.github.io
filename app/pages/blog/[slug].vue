@@ -56,6 +56,54 @@ const route = useRoute()
 const slug = route.params.slug
 
 const posts = {
+  'xsd-graph-explorer': {
+    title: 'Visualising ADAC XSD Schemas as a 3D Graph',
+    excerpt: 'XML Schema files are notoriously hard to navigate. We built a browser-based tool that turns them into an interactive 3D node graph — with search, an inheritance tree, and no install required.',
+    category: 'Tool',
+    date: 'March 19, 2026',
+    readTime: '3 min read',
+    content: `
+      <p>If you've ever had to work with ADAC — Australia's asset data handover standard — you'll know the schema is not small. Sixteen XSD files, hundreds of complex types, deep inheritance chains, and cross-file references. Reading it in a text editor tells you almost nothing about how the types relate to each other.</p>
+
+      <p>We built the <strong>XSD Graph Explorer</strong> to change that.</p>
+
+      <div style="margin:2rem 0;">
+        <video controls muted loop playsinline style="width:100%;border-radius:10px;display:block;background:#0a0a12;">
+          <source src="/blog/xsd-graph-demo.webm" type="video/webm">
+          Your browser does not support embedded video.
+        </video>
+        <p style="text-align:center;font-size:0.82rem;color:#888;margin-top:0.6rem;">The XSD Graph Explorer auto-loading all 16 ADAC schema files and rendering a navigable 3D node graph.</p>
+      </div>
+
+      <h2>The Problem With Schemas</h2>
+
+      <p>XSD files are designed for machine validation, not human exploration. They encode rich structural information — type hierarchies, element references, attribute constraints — but that information is spread across files, buried in XML, and cross-linked in ways that are almost impossible to follow linearly.</p>
+
+      <p>Tools like Oxygen XML or Altova XMLSpy can visualise schemas, but they require a licence, a local install, and a fairly specific workflow. There's no quick, open, browser-based way to just <em>look at</em> how a schema hangs together.</p>
+
+      <h2>What We Built</h2>
+
+      <p>The <strong>XSD Graph Explorer</strong> parses one or more XSD files in the browser and renders them as a force-directed 3D graph. Nodes represent types, elements, groups, and attribute groups. Edges represent the relationships between them: extension, restriction, reference, containment, and import.</p>
+
+      <ul>
+        <li>Drag and drop any <code>.xsd</code> files or use the auto-loaded ADAC schema set (all 16 files, parsed on first visit)</li>
+        <li>Rotate, zoom, and pan the 3D graph freely — click any node to inspect its attributes, documentation, and connections</li>
+        <li>Search across all node names and namespaces — results appear in a dropdown with the matching segment highlighted</li>
+        <li>Switch to the <strong>Tree tab</strong> to browse the inheritance hierarchy — expand/collapse branches, filter by name, and click any row to fly the camera to that node</li>
+        <li>Filter by node kind (complexType, element, simpleType, group, attributeGroup) and namespace</li>
+        <li>Everything runs in the browser — no install, no server, no account</li>
+      </ul>
+
+      <h2>ADAC as a Starting Point</h2>
+
+      <p>We pre-load the full ADAC V6.0 schema set on first visit. ADAC (Asset Data and Acquisition Commitment) is the XML-based standard used by Australian local councils and utilities for asset data handover. Its schema is a good stress test: 16 interdependent XSD files with complex GML-based inheritance, hundreds of types, and a wide range of element structures across water, sewerage, transport, electrical, and open space domains.</p>
+
+      <p>The graph renders all of it in a few seconds. The result is a navigable map of the entire schema — something that would take hours to reconstruct manually from the raw files.</p>
+
+      <p><a href="/tools/xsd-graph">Open the XSD Graph Explorer →</a></p>
+    `,
+  },
+
   'overture-downloader': {
     title: 'Downloading Overture Maps Data Without the Headache',
     excerpt: 'Running DuckDB queries against cloud-hosted Parquet files is powerful, but it shouldn\'t require a data engineering background just to grab a city\'s worth of POIs.',
@@ -66,6 +114,14 @@ const posts = {
       <p>Overture Maps is one of the most exciting open datasets to emerge in recent years: a global, structured, regularly updated alternative to OpenStreetMap, maintained by a consortium including Microsoft, Meta, and Amazon.</p>
 
       <p>The data is openly available. The problem is how you get to it.</p>
+
+      <div style="margin:2rem 0;">
+        <video controls muted loop playsinline style="width:100%;border-radius:10px;display:block;background:#0a0a12;">
+          <source src="/blog/overture-downloader-demo.webm" type="video/webm">
+          Your browser does not support embedded video.
+        </video>
+        <p style="text-align:center;font-size:0.82rem;color:#888;margin-top:0.6rem;">Queuing cafés and automotive places in Bracken Ridge, QLD — DuckDB WASM running entirely in the browser.</p>
+      </div>
 
       <h2>The Existing Options Fall Short</h2>
 

@@ -6,6 +6,9 @@ export default defineConfig({
   // Per-test timeout — extractions can take a while
   timeout: 300_000,
 
+  // Don't wipe the whole outputDir before each run so previous recordings survive
+  cleanOutputDir: false,
+
   use: {
     baseURL: 'http://localhost:3000',
     viewport: { width: 1280, height: 800 },

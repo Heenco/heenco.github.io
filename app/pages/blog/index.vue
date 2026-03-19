@@ -49,6 +49,14 @@
 <script setup>
 const posts = [
   {
+    slug: 'xsd-graph-explorer',
+    title: 'Visualising ADAC XSD Schemas as a 3D Graph',
+    excerpt: 'XML Schema files are notoriously hard to navigate. We built a browser-based tool that turns them into an interactive 3D node graph — with search, an inheritance tree, and no install required.',
+    category: 'Tool',
+    date: 'March 19, 2026',
+    readTime: '3 min read',
+  },
+  {
     slug: 'population-dataset',
     title: 'From a 400 MB GeoPackage to a Web Map in Four Steps',
     excerpt: 'Kontur\'s population dataset is one of the most useful open spatial datasets available. Here\'s exactly how we downloaded it, converted it to PMTiles, and put it on a map anyone can explore.',

@@ -90,6 +90,31 @@
           </label>
         </div>
 
+        <!-- Traffic -->
+        <div class="layer-item">
+          <label class="layer-label" @click.prevent="toggleTraffic">
+            <button 
+              type="button"
+              role="switch"
+              :aria-checked="trafficVisible"
+              class="layer-switch"
+              :class="{ active: trafficVisible }"
+            >
+              <span class="layer-switch-thumb"></span>
+            </button>
+            <div class="layer-info">
+              <span class="layer-name">Traffic</span>
+              <span class="layer-description">Live congestion from Mapbox</span>
+              <div v-if="trafficVisible" class="traffic-legend">
+                <span class="traffic-chip traffic-low">Low</span>
+                <span class="traffic-chip traffic-moderate">Moderate</span>
+                <span class="traffic-chip traffic-heavy">Heavy</span>
+                <span class="traffic-chip traffic-severe">Severe</span>
+              </div>
+            </div>
+          </label>
+        </div>
+
         <!-- Foursquare + remaining layers -->
         <div v-for="layer in layers.filter(l => l.id !== 'population')" :key="layer.id" class="layer-item">
           <label class="layer-label" @click.prevent="toggleLayer(layer.id)">
@@ -167,6 +192,7 @@ const currentBasemap = ref('dark-matter');
 const selectedBasemap = ref('dark-matter');
 const layers = ref(mapLayers.map(l => ({ id: l.id, name: l.name, description: l.description, visible: l.visible })));
 const placesVisible = ref(true);
+const trafficVisible = ref(false);
 let debounceTimer = null;
 
 const PMTILES_SCRIPT_URL = 'https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js';
@@ -397,6 +423,54 @@ const addOvertureLayers = () => {
   } else {
     map.setLayoutProperty(PLACES_LAYER_ID, 'visibility', placesVisible.value ? 'visible' : 'none');
   }
+
+  addTrafficLayer();
+};
+
+const addTrafficLayer = () => {
+  if (!map || !map.isStyleLoaded()) return;
+  const token = config.public.mapboxToken;
+  if (!map.getSource('mapbox-traffic')) {
+    map.addSource('mapbox-traffic', {
+      type: 'vector',
+      tiles: [`https://api.mapbox.com/v4/mapbox.mapbox-traffic-v1/{z}/{x}/{y}.mvt?access_token=${token}`],
+      minzoom: 0,
+      maxzoom: 15
+    });
+  }
+  if (!map.getLayer('traffic')) {
+    map.addLayer({
+      id: 'traffic',
+      type: 'line',
+      source: 'mapbox-traffic',
+      'source-layer': 'traffic',
+      minzoom: 6,
+      paint: {
+        'line-color': ['match', ['get', 'congestion'],
+          'low', '#22c55e',
+          'moderate', '#f59e0b',
+          'heavy', '#ef4444',
+          'severe', '#7f1d1d',
+          '#94a3b8'
+        ],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1, 12, 2.5],
+        'line-opacity': 0.85
+      },
+      layout: { visibility: trafficVisible.value ? 'visible' : 'none' }
+    });
+  } else {
+    map.setLayoutProperty('traffic', 'visibility', trafficVisible.value ? 'visible' : 'none');
+  }
+};
+
+const toggleTraffic = () => {
+  trafficVisible.value = !trafficVisible.value;
+  if (!map) return;
+  if (map.getLayer('traffic')) {
+    map.setLayoutProperty('traffic', 'visibility', trafficVisible.value ? 'visible' : 'none');
+  } else {
+    addTrafficLayer();
+  }
 };
 
 const fetchSuggestions = () => {
@@ -428,7 +502,8 @@ const selectSuggestion = (suggestion) => {
   searchQuery.value = suggestion.place_name;
   suggestions.value = [];
   showSuggestions.value = false;
-  
+  if (!map) return;
+
   const [lng, lat] = suggestion.center;
   placeSearchMarker(lng, lat);
   map.flyTo({
@@ -1158,4 +1233,27 @@ onUnmounted(() => {
 .modal-button-continue:hover {
   opacity: 0.9;
 }
+
+/* Traffic legend */
+.traffic-legend {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.traffic-chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  color: #fff;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.traffic-low { background: #22c55e; }
+.traffic-moderate { background: #f59e0b; }
+.traffic-heavy { background: #ef4444; }
+.traffic-severe { background: #7f1d1d; }
 </style>

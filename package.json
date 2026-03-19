@@ -13,6 +13,7 @@
     "record": "playwright test",
     "record:overture": "playwright test tests/demo-overture.spec.ts",
     "record:esri": "playwright test tests/demo-esri.spec.ts",
+    "record:xsd-graph": "playwright test tests/demo-xsd-graph.spec.ts",
     "new:campaign": "node scripts/new-campaign.mjs",
     "generate:assets": "node scripts/generate-assets.mjs",
     "generate:voiceover": "node scripts/generate-voiceover.mjs",

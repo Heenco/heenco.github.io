@@ -1,5 +1,11 @@
 <template>
-  <div class="er-page">
+  <div
+    class="er-page"
+    :style="{
+      '--er-left-panel-width': `${leftPanelWidth}px`,
+      '--er-right-rail-width': `${rightPanelWidth}px`,
+    }"
+  >
 
     <!-- ── ESRI REST FAB (when panel hidden) ──────────────────────────── -->
     <button v-if="!showPanel" class="er-fab er-fab--esri" @click="showPanel = true; addDataOpen = false; showGeoSearch = false" title="Open ESRI REST Downloader">
@@ -51,7 +57,7 @@
 
     <!-- ── Left panel ────────────────────────────────────────────────────── -->
     <transition name="er-slide-left">
-      <aside v-if="showPanel" class="er-panel">
+      <aside v-if="showPanel" class="er-panel" :style="{ width: `${leftPanelWidth}px` }">
         <div class="er-panel-header">
           <div class="er-header">
             <h1 class="er-title">ESRI REST Downloader</h1>
@@ -440,6 +446,7 @@
         </transition>
       </div>
 
+        <div class="er-resize-handle er-resize-handle--right" @mousedown.prevent="startResize('left', $event)" />
       </aside>
     </transition>
 
@@ -731,7 +738,12 @@
 
     <!-- ── Layers panel (right side) ────────────────────────────────────────── -->
     <transition name="er-slide-right">
-      <aside v-if="pinnedLayers.length > 0 && showLayers" class="er-layers-panel" :ref="(el) => setLayersPanelRef(el as HTMLElement | null)">
+      <aside
+        v-if="pinnedLayers.length > 0 && showLayers"
+        class="er-layers-panel"
+        :style="{ width: `${rightPanelWidth}px` }"
+        :ref="(el) => setLayersPanelRef(el as HTMLElement | null)"
+      >
         <div class="er-layers-header">
           <span style="font-size:0.75rem;font-weight:600;color:hsl(var(--foreground))">
             Layers
@@ -781,6 +793,7 @@
             </div>
           </div>
         </div>
+        <div class="er-resize-handle er-resize-handle--left" @mousedown.prevent="startResize('right', $event)" />
       </aside>
     </transition>
 
@@ -1214,6 +1227,8 @@ let   activeRenderer: any = null
 let   activeGeomType      = ''
 const pinnedLayers      = ref<PinnedLayer[]>([])
 const showLayers        = ref(true)
+const leftPanelWidth    = ref(360)
+const rightPanelWidth   = ref(300)
 const showBasemapMenu   = ref(false)
 const currentBasemap    = ref('dark-matter')
 const selectedBasemap   = ref('dark-matter')
@@ -3371,6 +3386,33 @@ onUnmounted(() => {
   if (_db)   { _db.terminate().catch(() => {}); _db = null }
   document.removeEventListener('click', handleGeoClickOutside)
 })
+
+// ── Panel resize (drag handles) ─────────────────────────────────────────────
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+
+const startResize = (side: 'left' | 'right', e: MouseEvent) => {
+  const startX = e.clientX
+  const startW = side === 'left' ? leftPanelWidth.value : rightPanelWidth.value
+  const minW = side === 'left' ? 300 : 220
+  const maxW = side === 'left' ? 520 : 420
+
+  const onMove = (ev: MouseEvent) => {
+    const delta = ev.clientX - startX
+    if (side === 'left') {
+      leftPanelWidth.value = clamp(startW + delta, minW, maxW)
+    } else {
+      rightPanelWidth.value = clamp(startW - delta, minW, maxW)
+    }
+  }
+
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+  }
+
+  window.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', onUp)
+}
 </script>
 
 <style>
@@ -3452,14 +3494,18 @@ onUnmounted(() => {
   overflow: hidden;
   background: #0a0a12;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Figtree', 'Segoe UI', system-ui, sans-serif;
+  --er-left-panel-offset: calc(1rem + 40px + 8px);
+  --er-left-panel-width: 360px;
+  --er-right-rail-width: 300px;
+  --er-right-rail: calc(1rem + 40px + 8px + var(--er-right-rail-width) + 0.75rem);
 }
 
 .er-panel {
   position: absolute;
   top: 1rem;
-  left: calc(1rem + 40px + 8px);
+  left: var(--er-left-panel-offset);
   bottom: 1rem;
-  width: 360px;
+  width: var(--er-left-panel-width);
   background: hsl(var(--card) / 0.97);
   backdrop-filter: blur(12px);
   border: 1px solid hsl(var(--border));
@@ -4675,9 +4721,9 @@ onUnmounted(() => {
 .er-detail-panel {
   position: absolute;
   top: 1rem;
-  left: calc(1rem + 360px + 0.75rem);
+  left: calc(var(--er-left-panel-offset) + var(--er-left-panel-width) + 0.75rem);
   bottom: 1rem;
-  width: 320px;
+  width: min(320px, calc(100vw - (var(--er-left-panel-offset) + var(--er-left-panel-width) + 0.75rem) - var(--er-right-rail)));
   background: hsl(var(--card) / 0.97);
   backdrop-filter: blur(12px);
   border: 1px solid hsl(var(--border));
@@ -4943,13 +4989,52 @@ onUnmounted(() => {
   opacity: 0;
 }
 
+/* ── Resize handles ────────────────────────────────────────────────────── */
+.er-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 30;
+  pointer-events: auto;
+  touch-action: none;
+}
+.er-resize-handle--right { right: 0; }
+.er-resize-handle--left  { left: 0; }
+/* Wider invisible hit area via pseudo-element */
+.er-resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  right: -6px;
+  cursor: col-resize;
+}
+/* Subtle visible line on hover */
+.er-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: hsl(var(--primary) / 0.5);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.er-resize-handle--right::after { right: 0; }
+.er-resize-handle--left::after  { left: 0; }
+.er-resize-handle:hover::after { opacity: 1; }
+
 /* ── Layers panel (right side) ─────────────────────────────────────────── */
 .er-layers-panel {
   position: absolute;
   top: 1rem;
   right: calc(1rem + 40px + 8px);
   bottom: 1rem;
-  width: 300px;
+  width: var(--er-right-rail-width);
   max-height: calc(100vh - 2rem);
   background: hsl(var(--card) / 0.97);
   backdrop-filter: blur(12px);
